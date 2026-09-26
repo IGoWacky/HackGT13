@@ -19,4 +19,5 @@ class Prescription(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"))
     medication = Column(String, nullable=False)
     dosage = Column(String)
+    instructions = Column(String)
     active = Column(Boolean, default=True)
