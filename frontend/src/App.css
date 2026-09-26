@@ -1,0 +1,13 @@
+.hello-page {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  color: #17252a;
+  background: #f3f2ec;
+}
+
+.hello-page h1 {
+  margin: 0;
+  font-size: 48px;
+  font-weight: 600;
+}
