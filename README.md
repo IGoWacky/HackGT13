@@ -67,12 +67,12 @@ trigger-based HCP resources and enabling action at the moment it is useful.
 
 ## Current Implementation
 
-The repository is the starting scaffold for the project:
+The repository currently contains:
 
-- **Frontend:** React, TypeScript, and Vite. The current page displays
-  “Hello, world!”.
-- **Backend:** FastAPI. The current API provides `GET /`, and FastAPI's
-  interactive docs are available at `/docs`.
+- **Frontend:** A React, TypeScript, and Vite patient-portal preview with local
+  sample requests.
+- **Backend:** FastAPI and SQLAlchemy, with `GET /patients/{patient_id}` and
+  `GET /prescriptions/{patient_id}` routes. Interactive API docs are at `/docs`.
 
 The patient portal, medication dataset, recommendation logic, HCP workflow,
 messenger, and prescription update flow are planned functionality and have not
@@ -111,6 +111,55 @@ def get_demo_request(request_id: str):
 Open the URL printed by Vite to see the current starter page. The backend root
 is at `http://127.0.0.1:8000/`; FastAPI's interactive docs are at
 `http://127.0.0.1:8000/docs`.
+
+## Quick start on Windows
+
+Install Node.js 20.19+ (or 22.12+) and Python 3.10+ first. Open two PowerShell
+terminals in the project root.
+
+### Start the backend
+
+In the first terminal, install the Python dependencies and start FastAPI:
+
+```powershell
+cd backend
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+The API is at `http://127.0.0.1:8000/`; its interactive docs are at
+`http://127.0.0.1:8000/docs`. The included `backend/patients.db` is used by the
+API.
+
+### Start the frontend
+
+In the second terminal:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite. **Current blocker:** `frontend/src/main.tsx`
+imports `frontend/src/Auth.tsx`, which is missing from the repository, so the
+frontend will not compile until that module is restored or implemented.
+
+### Run a synthetic demo packet
+
+From a separate terminal at the project root, the demo database is included.
+To recreate it with deterministic synthetic data and print a clinician packet,
+run:
+
+```powershell
+py .\seed_demo_db.py
+py .\demo_packet.py REQ1
+```
+
+Change `REQ1` to `REQ2`, `REQ3`, `REQ4`, or `REQ5` to inspect another scenario.
+The scripts use only Python's standard library, so no package installation is
+needed for the standalone packet demo.
 
 ## Included scenarios
 
