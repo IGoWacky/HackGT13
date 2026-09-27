@@ -5,3 +5,6 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
 button:disabled{opacity:.5;cursor:not-allowed;filter:none}
+
+.active-prescriptions{margin-bottom:22px}.active-prescriptions .section-heading{padding-bottom:16px}.prescription-list{padding:0 24px 8px}.prescription-row{width:100%;display:flex;align-items:center;gap:14px;padding:15px 0;border-top:1px solid #edf0ed;background:transparent;text-align:left}.prescription-info{display:grid;gap:5px;min-width:0;flex:1}.prescription-info strong{font-size:13px;color:#293b31}.prescription-info small,.prescription-state{font-size:11px;color:#859087}.prescription-info small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.report-link{display:inline-flex;align-items:center;gap:8px;color:#367259;font-size:11px;font-weight:650;white-space:nowrap}.prescription-state{padding:0 24px 20px}.prescription-row:hover .report-link{color:#214f3b}.prescription-row:focus-visible{outline:2px solid #367259;outline-offset:3px}
+@media(max-width:760px){.prescription-list{padding:0 15px 7px}.prescription-row{gap:9px}.prescription-info strong{font-size:10px}.prescription-info small{font-size:9px}.report-link{font-size:9px;gap:4px}.prescription-state{padding:0 16px 17px;font-size:10px}}

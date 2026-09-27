@@ -4,7 +4,7 @@ import App from './App'
 import './Auth.css'
 
 type Profile = { name: string; email: string; birth: string }
-type PreviewSession = { profile: Profile; sampleRequests: boolean }
+type PreviewSession = { profile: Profile; sampleRequests: boolean; patientId?: number }
 
 // Frontend preview only. Passwords are never persisted or sent to a server.
 export default function Auth() {
@@ -51,6 +51,7 @@ export default function Auth() {
           body: JSON.stringify({ email: values.email.trim(), password: values.password }),
         })
         const result = await response.json() as {
+          id?: unknown
           detail?: unknown
           name?: unknown
           email?: unknown
@@ -71,6 +72,7 @@ export default function Auth() {
             birth: typeof result.date_of_birth === 'string' ? result.date_of_birth : '',
           },
           sampleRequests: false,
+          ...(typeof result.id === 'number' ? { patientId: result.id } : {}),
         })
       } catch (requestError) {
         setValues(current => ({ ...current, password: '' }))
@@ -95,14 +97,14 @@ export default function Auth() {
           password: values.password,
         }),
       })
-      const result = await response.json() as { detail?: unknown }
+      const result = await response.json() as { detail?: unknown; id?: unknown }
       if (!response.ok) {
         throw new Error(typeof result.detail === 'string' ? result.detail : 'Unable to create your account.')
       }
 
       const profile = { name: values.name.trim(), email: values.email.trim(), birth: values.birth }
       setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
-      setSession({ profile, sampleRequests: false })
+      setSession({ profile, sampleRequests: false, ...(typeof result.id === 'number' ? { patientId: result.id } : {}) })
     } catch (requestError) {
       setError(requestError instanceof Error
         ? requestError.message
@@ -113,7 +115,7 @@ export default function Auth() {
   }
 
   if (session) {
-    return <App initialProfile={session.profile} sampleRequests={session.sampleRequests} onSignOut={() => {
+    return <App initialProfile={session.profile} patientId={session.patientId} sampleRequests={session.sampleRequests} onSignOut={() => {
       setSession(null)
       setMode('login')
       setShowPassword(false)
