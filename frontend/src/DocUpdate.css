@@ -78,7 +78,9 @@
 }
 
 .docupdate-refresh,
-.docupdate-resolve {
+.docupdate-resolve,
+.docupdate-create,
+.docupdate-cancel {
   min-height: 40px;
   padding: 0 14px;
   border: 1px solid #d7e2db;
@@ -88,6 +90,22 @@
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
+}
+
+.docupdate-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.docupdate-create {
+  border-color: #2d745b;
+  background: #2d745b;
+  color: #fff;
+}
+
+.docupdate-cancel {
+  align-self: start;
 }
 
 .docupdate-resolve {
@@ -138,7 +156,7 @@
 
 .docupdate-table {
   width: 100%;
-  min-width: 850px;
+  min-width: 1120px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -224,5 +242,134 @@
 
   .docupdate-heading h1 {
     font-size: 29px;
+  }
+}
+
+.docupdate-select {
+  width: 210px;
+  min-height: 39px;
+  padding: 0 10px;
+  border: 1px solid #d7e2db;
+  border-radius: 5px;
+  background: #fff;
+  color: #35483e;
+  font-size: 11px;
+}
+
+.docupdate-option-detail {
+  max-width: 220px;
+  color: #718078 !important;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.report-prescription-details {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.report-prescription-details > section {
+  padding: 16px;
+  border: 1px solid #dfe8d7;
+  border-radius: 8px;
+  background: #f5f8f3;
+}
+
+.report-prescription-details h3 {
+  color: #3e5942;
+  font-size: 13px;
+}
+
+.report-prescription-details .review {
+  margin: 8px 0 0;
+}
+
+.docupdate-create-panel {
+  margin: 22px 0;
+  padding: 22px;
+  border: 1px solid #dfe8d7;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.docupdate-create-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.docupdate-create-heading h2 {
+  margin: 0;
+  color: #253d32;
+  font-family: Manrope, sans-serif;
+  font-size: 20px;
+}
+
+.docupdate-create-heading p:last-child {
+  margin-top: 6px;
+  color: #718078;
+  font-size: 12px;
+}
+
+.docupdate-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.docupdate-form-fields label {
+  display: grid;
+  gap: 7px;
+  color: #52635a;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.docupdate-form-fields select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid #d7e2db;
+  border-radius: 5px;
+  background: #fff;
+  color: #35483e;
+  font-size: 12px;
+}
+
+.docupdate-prescription-preview {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 5px;
+  background: #f5f8f3;
+  color: #52635a;
+  font-size: 12px;
+}
+
+.docupdate-synthetic-note {
+  margin: 14px 0;
+  color: #89958e;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 620px) {
+  .docupdate-actions {
+    width: 100%;
+  }
+
+  .docupdate-actions > button {
+    flex: 1;
+  }
+
+  .docupdate-create-panel {
+    padding: 17px;
+  }
+
+  .docupdate-form-fields {
+    grid-template-columns: 1fr;
   }
 }

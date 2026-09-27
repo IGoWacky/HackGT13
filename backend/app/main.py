@@ -10,6 +10,10 @@ patient_columns = {column["name"] for column in inspect(engine).get_columns("pat
 if "date_of_birth" not in patient_columns:
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE patients ADD COLUMN date_of_birth DATE"))
+report_columns = {column["name"] for column in inspect(engine).get_columns("prescription_issue_reports")}
+if "new_prescription_id" not in report_columns:
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE prescription_issue_reports ADD COLUMN new_prescription_id INTEGER REFERENCES prescriptions(id)"))
 
 message_data_columns = {column["name"] for column in inspect(engine).get_columns("message_data")}
 with engine.begin() as connection:

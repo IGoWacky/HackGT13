@@ -20,9 +20,35 @@ export type OpenReport = {
   patient_name: string
   prescription_id: number
   medication: string
+  original_prescription: PrescriptionSnapshot
   issue: string
   status: string
   created_at: string
+}
+
+export type PrescriptionSnapshot = {
+  id: number
+  medication: string
+  dosage: string | null
+  instructions: string | null
+  active: boolean
+}
+
+export type CreatedPrescription = PrescriptionSnapshot & {
+  patient_id: number
+}
+
+export type ReplacementOption = {
+  key: string
+  medication: string
+  dosage: string
+  instructions: string
+}
+
+export type DocUpdatePatient = {
+  id: number
+  name: string
+  email: string
 }
 
 // /api is forwarded to FastAPI by the local Vite proxy.
@@ -108,6 +134,7 @@ export async function loadOpenReports(signal?: AbortSignal): Promise<OpenReport[
         typeof record.patient_name !== 'string' ||
         typeof record.prescription_id !== 'number' || !Number.isInteger(record.prescription_id) ||
         typeof record.medication !== 'string' || typeof record.issue !== 'string' ||
+        !isPrescriptionSnapshot(record.original_prescription) ||
         typeof record.status !== 'string' || typeof record.created_at !== 'string') {
       throw new Error('The server returned an invalid open request.')
     }
@@ -115,10 +142,66 @@ export async function loadOpenReports(signal?: AbortSignal): Promise<OpenReport[
   })
 }
 
-export async function resolveOpenReport(reportId: number): Promise<void> {
-  const result = await requestJson(`/reports/${reportId}/resolve`, { method: 'PATCH' })
+function isPrescriptionSnapshot(value: unknown): value is PrescriptionSnapshot {
+  return !!value && typeof value === 'object' &&
+    'id' in value && typeof value.id === 'number' && Number.isInteger(value.id) &&
+    'medication' in value && typeof value.medication === 'string' &&
+    'dosage' in value && (value.dosage === null || typeof value.dosage === 'string') &&
+    'instructions' in value && (value.instructions === null || typeof value.instructions === 'string') &&
+    'active' in value && typeof value.active === 'boolean'
+}
+
+export async function loadReplacementOptions(signal?: AbortSignal): Promise<ReplacementOption[]> {
+  const result = await requestJson('/reports/replacement-options', { signal })
+  if (!Array.isArray(result)) throw new Error('The server returned an invalid replacement list.')
+  return result.map(option => {
+    if (!option || typeof option !== 'object' || typeof option.key !== 'string' ||
+        typeof option.medication !== 'string' || typeof option.dosage !== 'string' ||
+        typeof option.instructions !== 'string') {
+      throw new Error('The server returned an invalid replacement prescription.')
+    }
+    return option as ReplacementOption
+  })
+}
+
+export async function loadDocUpdatePatients(signal?: AbortSignal): Promise<DocUpdatePatient[]> {
+  const result = await requestJson('/reports/patients', { signal })
+  if (!Array.isArray(result)) throw new Error('The server returned an invalid patient list.')
+  return result.map(patient => {
+    if (!patient || typeof patient !== 'object' || typeof patient.id !== 'number' ||
+        !Number.isInteger(patient.id) || typeof patient.name !== 'string' ||
+        typeof patient.email !== 'string') {
+      throw new Error('The server returned an invalid patient record.')
+    }
+    return patient as DocUpdatePatient
+  })
+}
+
+export async function createStandalonePrescription(
+  patientId: number,
+  replacementKey: string,
+): Promise<CreatedPrescription> {
+  const result = await requestJson('/prescriptions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patient_id: patientId, replacement_key: replacementKey }),
+  })
+  if (!isPrescriptionSnapshot(result) || !('patient_id' in result) ||
+      typeof result.patient_id !== 'number' || result.patient_id !== patientId) {
+    throw new Error('The server returned an invalid created prescription.')
+  }
+  return result as CreatedPrescription
+}
+
+export async function resolveOpenReport(reportId: number, replacementKey: string): Promise<void> {
+  const result = await requestJson(`/reports/${reportId}/resolve`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ replacement_key: replacementKey }),
+  })
   if (!result || typeof result !== 'object' || !('id' in result) || result.id !== reportId ||
-      !('status' in result) || result.status !== 'Resolved') {
-    throw new Error('The server did not confirm that the request was resolved.')
+      !('status' in result) || result.status !== 'Resolved' ||
+      !('replacement_prescription' in result) || !isPrescriptionSnapshot(result.replacement_prescription)) {
+    throw new Error('The server did not confirm the replacement prescription.')
   }
 }

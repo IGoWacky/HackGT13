@@ -31,6 +31,7 @@ class PrescriptionIssueReport(Base):
     id = Column(Integer, primary_key=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
     prescription_id = Column(Integer, ForeignKey("prescriptions.id"), nullable=False)
+    new_prescription_id = Column(Integer, ForeignKey("prescriptions.id"), nullable=True)
     issue = Column(String, nullable=False)
     status = Column(String, nullable=False, default="Submitted")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

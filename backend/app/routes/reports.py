@@ -3,10 +3,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..database import SessionLocal
+from ..demo_prescriptions import DEMO_REPLACEMENT_OPTIONS
 from ..models import Patient, Prescription, PrescriptionIssueReport, RxRescueMessageData
 
 router = APIRouter()
@@ -18,6 +19,10 @@ class ReportCreate(BaseModel):
     issue: Literal["Too expensive", "No insurance coverage", "Medical conflicts"]
 
 
+class ReportResolve(BaseModel):
+    replacement_key: str
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -26,15 +31,32 @@ def get_db():
         db.close()
 
 
-def serialize_report(report: PrescriptionIssueReport, prescription: Prescription):
+def serialize_report(
+    report: PrescriptionIssueReport,
+    prescription: Prescription,
+    replacement: Prescription | None = None,
+):
     medication = prescription.medication
     if prescription.dosage:
         medication = f"{medication} · {prescription.dosage}"
+
+    def prescription_details(item: Prescription | None):
+        if item is None:
+            return None
+        return {
+            "id": item.id,
+            "medication": item.medication,
+            "dosage": item.dosage,
+            "instructions": item.instructions,
+            "active": item.active,
+        }
 
     return {
         "id": report.id,
         "prescription_id": report.prescription_id,
         "medication": medication,
+        "original_prescription": prescription_details(prescription),
+        "replacement_prescription": prescription_details(replacement),
         "issue": report.issue,
         "status": report.status,
         "created_at": report.created_at,
@@ -58,11 +80,25 @@ def get_open_reports(db: Session = Depends(get_db)):
             "patient_name": patient.name,
             "prescription_id": prescription.id,
             "medication": serialize_report(report, prescription)["medication"],
+            "original_prescription": serialize_report(report, prescription)["original_prescription"],
             "issue": report.issue,
             "status": report.status,
             "created_at": report.created_at,
         }
         for report, patient, prescription in rows
+    ]
+
+
+@router.get("/replacement-options")
+def get_replacement_options():
+    return DEMO_REPLACEMENT_OPTIONS
+
+
+@router.get("/patients")
+def get_docupdate_patients(db: Session = Depends(get_db)):
+    return [
+        {"id": patient.id, "name": patient.name, "email": patient.email}
+        for patient in db.query(Patient).order_by(Patient.name.asc()).all()
     ]
 
 
@@ -72,13 +108,19 @@ def get_reports(patient_id: int, db: Session = Depends(get_db)):
     if patient is None:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    rows = db.query(PrescriptionIssueReport, Prescription).join(
+    replacement = aliased(Prescription)
+    rows = db.query(PrescriptionIssueReport, Prescription, replacement).join(
         Prescription, PrescriptionIssueReport.prescription_id == Prescription.id
+    ).outerjoin(
+        replacement, PrescriptionIssueReport.new_prescription_id == replacement.id
     ).filter(
         PrescriptionIssueReport.patient_id == patient_id
     ).order_by(PrescriptionIssueReport.created_at.desc()).all()
 
-    return [serialize_report(report, prescription) for report, prescription in rows]
+    return [
+        serialize_report(report, prescription, replacement_prescription)
+        for report, prescription, replacement_prescription in rows
+    ]
 
 
 @router.post("/{patient_id}", status_code=201)
@@ -112,17 +154,52 @@ def create_report(
 
 
 @router.patch("/{report_id}/resolve")
-def resolve_report(report_id: int, db: Session = Depends(get_db)):
+def resolve_report(
+    report_id: int,
+    resolution: ReportResolve,
+    db: Session = Depends(get_db),
+):
     report = db.query(PrescriptionIssueReport).filter_by(id=report_id).first()
     if report is None:
         raise HTTPException(status_code=404, detail="Report not found")
 
-    if report.status not in ("Resolved", "Prescription sent"):
+    if report.status in ("Resolved", "Prescription sent"):
+        raise HTTPException(status_code=409, detail="Report is already closed")
+
+    replacement_option = next(
+        (option for option in DEMO_REPLACEMENT_OPTIONS if option["key"] == resolution.replacement_key),
+        None,
+    )
+    if replacement_option is None:
+        raise HTTPException(status_code=422, detail="Unknown replacement prescription")
+
+    original = db.get(Prescription, report.prescription_id)
+    if original is None or original.patient_id != report.patient_id:
+        raise HTTPException(status_code=409, detail="Original prescription is unavailable")
+
+    replacement = Prescription(
+        patient_id=report.patient_id,
+        medication=replacement_option["medication"],
+        dosage=replacement_option["dosage"],
+        instructions=replacement_option["instructions"],
+        active=True,
+    )
+    original.active = False
+    db.add(replacement)
+    try:
+        db.flush()
+        report.new_prescription_id = replacement.id
         report.status = "Resolved"
         db.commit()
-        db.refresh(report)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Unable to resolve this request")
 
-    return {"id": report.id, "status": report.status}
+    db.refresh(report)
+    db.refresh(original)
+    db.refresh(replacement)
+
+    return serialize_report(report, original, replacement)
 @router.post("/demo/reset")
 def reset_demo_reports(db: Session = Depends(get_db)):
     patient_rows = db.query(Patient.id).filter(Patient.email.in_(DEMO_PATIENT_EMAILS)).all()
