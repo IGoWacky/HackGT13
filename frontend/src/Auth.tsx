@@ -41,7 +41,6 @@ export default function Auth() {
     if (isSubmitting) return
     setMessage('')
     setError('')
-<<<<<<< HEAD
     if (signup && !values.name.trim()) { setError('Please enter your full name.'); return }
     if (signup && values.password !== values.confirm) { setError('Your passwords don’t match. Please try again.'); return }
     setIsSubmitting(true)
@@ -53,79 +52,6 @@ export default function Auth() {
         profile: { name: patient.name, email: patient.email, birth: patient.date_of_birth || '' },
         sampleRequests: false,
       })
-=======
-    if (signup && !values.name.trim()) {
-      setError('Please enter your full name.')
-      return
-    }
-    if (signup && values.password !== values.confirm) {
-      setError('Your passwords don’t match. Please try again.')
-      return
-    }
-    if (!signup) {
-      setIsSubmitting(true)
-      try {
-        const response = await fetch('/api/patients/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: values.email.trim(), password: values.password }),
-        })
-        const result = await response.json() as {
-          id?: unknown
-          detail?: unknown
-          name?: unknown
-          email?: unknown
-          date_of_birth?: unknown
-        }
-        if (!response.ok) {
-          throw new Error(typeof result.detail === 'string' ? result.detail : 'Invalid email or password.')
-        }
-        if (typeof result.name !== 'string' || typeof result.email !== 'string') {
-          throw new Error('The server returned an invalid patient profile.')
-        }
-
-        setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
-        setSession({
-          profile: {
-            name: result.name,
-            email: result.email,
-            birth: typeof result.date_of_birth === 'string' ? result.date_of_birth : '',
-          },
-          sampleRequests: false,
-          ...(typeof result.id === 'number' ? { patientId: result.id } : {}),
-        })
-      } catch (requestError) {
-        setValues(current => ({ ...current, password: '' }))
-        setError(requestError instanceof Error
-          ? requestError.message
-          : 'Unable to log in. Check that the backend is running and try again.')
-      } finally {
-        setIsSubmitting(false)
-      }
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      const response = await fetch('/api/patients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: values.name.trim(),
-          date_of_birth: values.birth,
-          email: values.email.trim(),
-          password: values.password,
-        }),
-      })
-      const result = await response.json() as { detail?: unknown; id?: unknown }
-      if (!response.ok) {
-        throw new Error(typeof result.detail === 'string' ? result.detail : 'Unable to create your account.')
-      }
-
-      const profile = { name: values.name.trim(), email: values.email.trim(), birth: values.birth }
-      setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
-      setSession({ profile, sampleRequests: false, ...(typeof result.id === 'number' ? { patientId: result.id } : {}) })
->>>>>>> bc3599d4206d926fcf7341b0b77a778d37549ee1
     } catch (requestError) {
       setValues(current => ({ ...current, password: '', confirm: '' }))
       setError(requestError instanceof Error ? requestError.message : 'Unable to connect. Please try again.')
@@ -135,11 +61,7 @@ export default function Auth() {
   }
 
   if (session) {
-<<<<<<< HEAD
     return <App key={session.patientId ?? 'demo'} patientId={session.patientId} initialProfile={session.profile} sampleRequests={session.sampleRequests} onSignOut={() => {
-=======
-    return <App initialProfile={session.profile} patientId={session.patientId} sampleRequests={session.sampleRequests} onSignOut={() => {
->>>>>>> bc3599d4206d926fcf7341b0b77a778d37549ee1
       setSession(null)
       setMode('login')
       setShowPassword(false)
