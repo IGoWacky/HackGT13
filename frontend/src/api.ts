@@ -14,6 +14,17 @@ export type Prescription = {
   pharmacy: string
 }
 
+export type OpenReport = {
+  id: number
+  patient_id: number
+  patient_name: string
+  prescription_id: number
+  medication: string
+  issue: string
+  status: string
+  created_at: string
+}
+
 // /api is forwarded to FastAPI by the local Vite proxy.
 async function requestJson(path: string, options?: RequestInit): Promise<unknown> {
   let response: Response
@@ -71,4 +82,29 @@ export async function loadPrescriptions(patientId: number, signal?: AbortSignal)
       provider: 'Not provided', pharmacy: 'Not provided',
     }
   })
+}
+
+export async function loadOpenReports(signal?: AbortSignal): Promise<OpenReport[]> {
+  const result = await requestJson('/reports/open', { signal })
+  if (!Array.isArray(result)) throw new Error('The server returned an invalid request list.')
+  return result.map(record => {
+    if (!record || typeof record !== 'object' ||
+        typeof record.id !== 'number' || !Number.isInteger(record.id) ||
+        typeof record.patient_id !== 'number' || !Number.isInteger(record.patient_id) ||
+        typeof record.patient_name !== 'string' ||
+        typeof record.prescription_id !== 'number' || !Number.isInteger(record.prescription_id) ||
+        typeof record.medication !== 'string' || typeof record.issue !== 'string' ||
+        typeof record.status !== 'string' || typeof record.created_at !== 'string') {
+      throw new Error('The server returned an invalid open request.')
+    }
+    return record as OpenReport
+  })
+}
+
+export async function resolveOpenReport(reportId: number): Promise<void> {
+  const result = await requestJson(`/reports/${reportId}/resolve`, { method: 'PATCH' })
+  if (!result || typeof result !== 'object' || !('id' in result) || result.id !== reportId ||
+      !('status' in result) || result.status !== 'Resolved') {
+    throw new Error('The server did not confirm that the request was resolved.')
+  }
 }

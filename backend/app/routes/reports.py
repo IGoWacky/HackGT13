@@ -38,6 +38,31 @@ def serialize_report(report: PrescriptionIssueReport, prescription: Prescription
     }
 
 
+@router.get("/open")
+def get_open_reports(db: Session = Depends(get_db)):
+    rows = db.query(PrescriptionIssueReport, Patient, Prescription).join(
+        Patient, Patient.id == PrescriptionIssueReport.patient_id
+    ).join(
+        Prescription, Prescription.id == PrescriptionIssueReport.prescription_id
+    ).filter(
+        PrescriptionIssueReport.status.notin_(("Resolved", "Prescription sent"))
+    ).order_by(PrescriptionIssueReport.created_at.asc()).all()
+
+    return [
+        {
+            "id": report.id,
+            "patient_id": patient.id,
+            "patient_name": patient.name,
+            "prescription_id": prescription.id,
+            "medication": serialize_report(report, prescription)["medication"],
+            "issue": report.issue,
+            "status": report.status,
+            "created_at": report.created_at,
+        }
+        for report, patient, prescription in rows
+    ]
+
+
 @router.get("/{patient_id}")
 def get_reports(patient_id: int, db: Session = Depends(get_db)):
     patient = db.query(Patient.id).filter(Patient.id == patient_id).first()
@@ -76,3 +101,17 @@ def create_report(
     db.commit()
     db.refresh(report)
     return serialize_report(report, prescription)
+
+
+@router.patch("/{report_id}/resolve")
+def resolve_report(report_id: int, db: Session = Depends(get_db)):
+    report = db.query(PrescriptionIssueReport).filter_by(id=report_id).first()
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    if report.status not in ("Resolved", "Prescription sent"):
+        report.status = "Resolved"
+        db.commit()
+        db.refresh(report)
+
+    return {"id": report.id, "status": report.status}
