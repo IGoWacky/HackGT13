@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import SessionLocal
-from ..models import Patient, Prescription, PrescriptionIssueReport
+from ..models import Patient, Prescription, PrescriptionIssueReport, RxRescueMessageData
 
 router = APIRouter()
 
@@ -72,7 +72,12 @@ def create_report(
         prescription_id=prescription.id,
         issue=report_data.issue,
     )
-    db.add(report)
+    rescue_message_data = RxRescueMessageData(
+        patient_id=patient_id,
+        prescription_id=prescription.id,
+        cause=report_data.issue,
+    )
+    db.add_all([report, rescue_message_data])
     db.commit()
     db.refresh(report)
     return serialize_report(report, prescription)

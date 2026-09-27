@@ -30,6 +30,5 @@ def get_message_data(
         "id": message.id,
         "patient_id": message.patient_id,
         "prescription_id": message.prescription_id,
-        "sponsored_generics": message.sponsored_generics,
-        "unsponsored_generics": message.unsponsored_generics
+        "cause": message.cause,
     }
