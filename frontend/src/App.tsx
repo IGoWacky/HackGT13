@@ -124,6 +124,7 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
     setPrescriptions([]); setPrescriptionsError(''); setPrescriptionsLoading(true)
     setReloadPrescriptions(value => value + 1)
   }
+
   function choosePrescription() { setPage('My prescriptions') }
 
   async function submit(e: FormEvent) {

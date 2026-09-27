@@ -8,6 +8,7 @@ from ..database import SessionLocal
 from ..models import Patient, Prescription, PrescriptionIssueReport, RxRescueMessageData
 
 router = APIRouter()
+DEMO_PATIENT_EMAILS = ("jane@example.com", "john@example.com")
 
 
 class ReportCreate(BaseModel):
@@ -81,3 +82,23 @@ def create_report(
     db.commit()
     db.refresh(report)
     return serialize_report(report, prescription)
+
+
+@router.post("/demo/reset")
+def reset_demo_reports(db: Session = Depends(get_db)):
+    patient_rows = db.query(Patient.id).filter(Patient.email.in_(DEMO_PATIENT_EMAILS)).all()
+    patient_ids = [patient_id for (patient_id,) in patient_rows]
+    if not patient_ids:
+        return {"deleted_reports": 0, "deleted_message_data": 0}
+
+    deleted_message_data = db.query(RxRescueMessageData).filter(
+        RxRescueMessageData.patient_id.in_(patient_ids)
+    ).delete(synchronize_session=False)
+    deleted_reports = db.query(PrescriptionIssueReport).filter(
+        PrescriptionIssueReport.patient_id.in_(patient_ids)
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {
+        "deleted_reports": deleted_reports,
+        "deleted_message_data": deleted_message_data,
+    }
