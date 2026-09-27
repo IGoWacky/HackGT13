@@ -11,13 +11,9 @@ advice.
 
 ## The Problem
 
-A prescription issue can require an HCP to gather and compare information about
-alternative medications, the patient's profile, and relevant warnings. A
-generic list alone does not show whether an option is appropriate for a
-particular patient or why it should be considered.
+When a prescription encounters an issue, HCPs must quickly evaluate alternative medications while considering patient-specific factors like existing medications and medical history. Generic substitution lists lack this context, forcing HCPs to gather and compare information themselves.
 
-RxRescue aims to bring that context together at the point of need, helping the
-HCP assess options without replacing their judgment.
+RxRescue brings that information together and provides transparent, patient-specific recommendations so HCPs can make informed decisions faster.
 
 ## Planned Workflow
 
