@@ -84,27 +84,16 @@ export async function loadPrescriptions(patientId: number, signal?: AbortSignal)
   })
 }
 
-export async function loadOpenReports(signal?: AbortSignal): Promise<OpenReport[]> {
-  const result = await requestJson('/reports/open', { signal })
-  if (!Array.isArray(result)) throw new Error('The server returned an invalid request list.')
-  return result.map(record => {
-    if (!record || typeof record !== 'object' ||
-        typeof record.id !== 'number' || !Number.isInteger(record.id) ||
-        typeof record.patient_id !== 'number' || !Number.isInteger(record.patient_id) ||
-        typeof record.patient_name !== 'string' ||
-        typeof record.prescription_id !== 'number' || !Number.isInteger(record.prescription_id) ||
-        typeof record.medication !== 'string' || typeof record.issue !== 'string' ||
-        typeof record.status !== 'string' || typeof record.created_at !== 'string') {
-      throw new Error('The server returned an invalid open request.')
-    }
-    return record as OpenReport
-  })
+export async function getReportResetEnabled(signal?: AbortSignal): Promise<boolean> {
+  const result = await requestJson('/reports/developer/status', { signal })
+  return !!result && typeof result === 'object' && 'report_reset_enabled' in result && result.report_reset_enabled === true
 }
 
-export async function resolveOpenReport(reportId: number): Promise<void> {
-  const result = await requestJson(`/reports/${reportId}/resolve`, { method: 'PATCH' })
-  if (!result || typeof result !== 'object' || !('id' in result) || result.id !== reportId ||
-      !('status' in result) || result.status !== 'Resolved') {
-    throw new Error('The server did not confirm that the request was resolved.')
+export async function resetPatientReports(patientId: number): Promise<number> {
+  const result = await requestJson(`/reports/developer/${patientId}`, { method: 'DELETE' })
+  if (!result || typeof result !== 'object' || !('patient_id' in result) || result.patient_id !== patientId ||
+      !('deleted_count' in result) || typeof result.deleted_count !== 'number' || !Number.isInteger(result.deleted_count) || result.deleted_count < 0) {
+    throw new Error('The server returned an unexpected reset response. Refresh to check your report history.')
   }
+  return result.deleted_count
 }

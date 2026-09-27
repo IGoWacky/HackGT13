@@ -3,14 +3,14 @@ import type { FormEvent } from 'react'
 import App from './App'
 import { authenticatePatient } from './api'
 import './Auth.css'
+import { clearPortalSession, readPortalSession, savePortalSession } from './session'
+import type { PortalSession } from './session'
 
-type Profile = { name: string; email: string; birth: string }
-type PreviewSession = { profile: Profile; sampleRequests: boolean; patientId?: number }
 
-// Keep the returned patient ID in memory to load this patient’s prescriptions.
+// Restore this tab’s prototype account state after refresh; sign-out removes it.
 export default function Auth() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
-  const [session, setSession] = useState<PreviewSession | null>(null)
+  const [session, setSession] = useState<PortalSession | null>(() => readPortalSession())
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -20,6 +20,11 @@ export default function Auth() {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
   const latestBirthDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+
+  function rememberSession(next: PortalSession) {
+    savePortalSession(next)
+    setSession(next)
+  }
 
   function switchMode() {
     if (isSubmitting) return
@@ -33,7 +38,7 @@ export default function Auth() {
   function enterDemo() {
     if (isSubmitting) return
     setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
-    setSession({ profile: { name: 'Alex Morgan', email: 'alex@example.com', birth: '1994-06-15' }, sampleRequests: true })
+    rememberSession({ profile: { name: 'Alex Morgan', email: 'alex@example.com', birth: '1994-06-15' }, sampleRequests: true })
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -47,7 +52,7 @@ export default function Auth() {
     try {
       const patient = await authenticatePatient(mode, values)
       setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
-      setSession({
+      rememberSession({
         patientId: patient.id,
         profile: { name: patient.name, email: patient.email, birth: patient.date_of_birth || '' },
         sampleRequests: false,
@@ -62,6 +67,7 @@ export default function Auth() {
 
   if (session) {
     return <App key={session.patientId ?? 'demo'} patientId={session.patientId} initialProfile={session.profile} sampleRequests={session.sampleRequests} onSignOut={() => {
+      clearPortalSession()
       setSession(null)
       setMode('login')
       setShowPassword(false)

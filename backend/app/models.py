@@ -41,5 +41,4 @@ class RxRescueMessageData(Base):
     id = Column(Integer, primary_key=True)
     patient_id = Column(Integer, ForeignKey("patients.id"))
     prescription_id = Column(Integer, ForeignKey("prescriptions.id"))
-    sponsored_generics = Column(String)
-    unsponsored_generics = Column(String)
+    cause = Column(String)
