@@ -39,6 +39,7 @@ export type CreatedPrescription = PrescriptionSnapshot & {
 }
 
 export type ReplacementOption = {
+  sponsorship: 'sponsored' | 'non-sponsored'
   key: string
   medication: string
   dosage: string
@@ -185,7 +186,8 @@ export async function loadReplacementOptions(signal?: AbortSignal): Promise<Repl
   return result.map(option => {
     if (!option || typeof option !== 'object' || typeof option.key !== 'string' ||
         typeof option.medication !== 'string' || typeof option.dosage !== 'string' ||
-        typeof option.instructions !== 'string') {
+        typeof option.instructions !== 'string' ||
+        (option.sponsorship !== 'sponsored' && option.sponsorship !== 'non-sponsored')) {
       throw new Error('The server returned an invalid replacement prescription.')
     }
     return option as ReplacementOption

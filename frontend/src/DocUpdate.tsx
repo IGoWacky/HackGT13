@@ -4,6 +4,21 @@ import { createStandalonePrescription, loadDocUpdatePatients, loadOpenReports, l
 import type { DocUpdatePatient, OpenReport, ReplacementOption } from './api'
 import './DocUpdate.css'
 
+function PrescriptionChoices({ options }: { options: ReplacementOption[] }) {
+  return <>
+    <optgroup label="Sponsored generic prescriptions (demo)">
+      {options.filter(option => option.sponsorship === 'sponsored').map(option => (
+        <option key={option.key} value={option.key}>{option.medication} · {option.dosage}</option>
+      ))}
+    </optgroup>
+    <optgroup label="Non-sponsored generic prescriptions (demo)">
+      {options.filter(option => option.sponsorship === 'non-sponsored').map(option => (
+        <option key={option.key} value={option.key}>{option.medication} · {option.dosage}</option>
+      ))}
+    </optgroup>
+  </>
+}
+
 function formatCreatedAt(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime())
@@ -136,6 +151,8 @@ export default function DocUpdate() {
           {isLoading ? 'Loading requests' : `${reports.length} open ${reports.length === 1 ? 'request' : 'requests'}`}
         </div>
 
+        <p className="docupdate-synthetic-note">Sponsored options illustrate Impiricus partner placement. All medications and sponsorships shown are fictional demo examples. Sponsorship does not establish clinical suitability or lower cost; the HCP chooses the appropriate prescription.</p>
+
         {notice && <p className="docupdate-notice" role="status">{notice}</p>}
         {error && <p className="docupdate-error" role="alert">{error}</p>}
         {showStandaloneForm && (
@@ -144,7 +161,7 @@ export default function DocUpdate() {
               <div>
                 <p className="docupdate-eyebrow">NO REPORT REQUIRED</p>
                 <h2>Create a prescription</h2>
-                <p>Attach a clearly synthetic sample prescription directly to a patient.</p>
+                <p>Choose a sponsored or non-sponsored generic demo prescription for a patient.</p>
               </div>
               <button className="docupdate-cancel" type="button" onClick={() => setShowStandaloneForm(false)} disabled={isCreatingPrescription}>Cancel</button>
             </div>
@@ -157,10 +174,10 @@ export default function DocUpdate() {
                 </select>
               </label>
               <label>
-                Synthetic sample prescription
+                Generic prescription (demo)
                 <select required value={standaloneOptionKey} onChange={event => setStandaloneOptionKey(event.target.value)} disabled={isCreatingPrescription}>
-                  <option value="">Choose a sample</option>
-                  {replacementOptions.map(option => <option key={option.key} value={option.key}>{option.medication} · {option.dosage}</option>)}
+                  <option value="">Choose a prescription</option>
+                  <PrescriptionChoices options={replacementOptions} />
                 </select>
               </label>
             </div>
@@ -197,7 +214,7 @@ export default function DocUpdate() {
                   <th scope="col">Original prescription</th>
                   <th scope="col">Issue</th>
                   <th scope="col">Submitted</th>
-                  <th scope="col">Synthetic replacement</th>
+                  <th scope="col">Generic replacement (demo)</th>
                   <th scope="col"><span className="visually-hidden">Action</span></th>
                 </tr>
               </thead>
@@ -217,13 +234,9 @@ export default function DocUpdate() {
                         onChange={event => setSelectedOptions(current => ({ ...current, [report.id]: event.target.value }))}
                         disabled={resolvingId !== null}
                       >
-                        <option value="">Choose a sample</option>
+                        <option value="">Choose a prescription</option>
                         <option value="keep-original">Keep original prescription unchanged</option>
-                        {replacementOptions.map(option => (
-                          <option key={option.key} value={option.key}>
-                            {option.medication} · {option.dosage}
-                          </option>
-                        ))}
+                        <PrescriptionChoices options={replacementOptions} />
                       </select>
                       {selectedOptions[report.id] && <small className="docupdate-option-detail">
                         {selectedOptions[report.id] === 'keep-original'
