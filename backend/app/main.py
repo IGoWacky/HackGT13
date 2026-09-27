@@ -3,7 +3,7 @@ from sqlalchemy import inspect, text
 
 from .database import engine
 from .models import Base
-from .routes import patients, prescriptions, message_data
+from .routes import patients, prescriptions, message_data, reports
 
 Base.metadata.create_all(bind=engine)
 patient_columns = {column["name"] for column in inspect(engine).get_columns("patients")}
@@ -29,6 +29,12 @@ app.include_router(
     message_data.router,
     prefix="/message-data",
     tags=["message data"]
+)
+
+app.include_router(
+    reports.router,
+    prefix="/reports",
+    tags=["reports"]
 )
 
 @app.get("/")

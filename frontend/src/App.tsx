@@ -5,7 +5,8 @@ import { loadPrescriptions } from './api'
 import type { Prescription } from './api'
 
 type Page = 'Overview' | 'My prescriptions' | 'My requests' | 'My profile'
-type Request = { prescriptionId?: string; preference?: string; provider?: string; id: string; medication: string; issue: string; pharmacy: string; date: string; status: 'Under review' | 'Prescription sent' | 'Submitted' }
+type Request = { prescriptionId?: string; provider?: string; id: string; medication: string; issue: string; pharmacy: string; date: string; status: 'Under review' | 'Prescription sent' | 'Submitted' }
+type SavedReport = { id: number; prescription_id: number; medication: string; issue: string; status: Request['status']; created_at: string }
 const initialRequests: Request[] = [
   { id: 'DU-1042', medication: 'Jardiance · 10 mg', issue: 'Not covered by insurance', pharmacy: 'Peachtree Pharmacy', date: 'Sep 24, 2026', status: 'Under review' },
   { id: 'DU-1038', medication: 'Symbicort · 80/4.5 mcg', issue: 'Medication is too expensive', pharmacy: 'Peachtree Pharmacy', date: 'Sep 18, 2026', status: 'Prescription sent' },
@@ -44,6 +45,8 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
   const [prescriptionsLoading, setPrescriptionsLoading] = useState(!sampleRequests && !!patientId)
   const [prescriptionsError, setPrescriptionsError] = useState(!sampleRequests && !patientId ? 'Please sign out and log in again to load your prescriptions.' : '')
   const [reloadPrescriptions, setReloadPrescriptions] = useState(0)
+  const [requestsLoading, setRequestsLoading] = useState(patientId !== undefined && !sampleRequests)
+  const [requestError, setRequestError] = useState('')
   useEffect(() => {
     if (sampleRequests) return
     const controller = new AbortController()
@@ -61,7 +64,34 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
   const [notice, setNotice] = useState('')
   const [filter, setFilter] = useState('All requests')
   const [profile, setProfile] = useState(initialProfile)
-  const [form, setForm] = useState({ name: '', birth: '', email: '', prescriptionId: '', medication: '', issue: '', alternative: 'A lower-cost generic, if appropriate', pharmacy: '', provider: '', updates: false })
+  const [form, setForm] = useState({ name: '', birth: '', email: '', prescriptionId: '', medication: '', issue: '', pharmacy: '', provider: '', updates: false })
+  useEffect(() => {
+    if (patientId === undefined || sampleRequests) return
+    let cancelled = false
+    fetch(`/api/reports/${patientId}`)
+      .then(async response => {
+        if (!response.ok) throw new Error('Unable to load your saved reports.')
+        return await response.json() as SavedReport[]
+      })
+      .then(data => {
+        if (!cancelled) setRequests(data.map(report => ({
+          id: `DU-${report.id}`,
+          prescriptionId: String(report.prescription_id),
+          medication: report.medication,
+          issue: report.issue,
+          pharmacy: '',
+          date: new Date(report.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          status: report.status,
+        })))
+      })
+      .catch(error => {
+        if (!cancelled) setRequestError(error instanceof Error ? error.message : 'Unable to load your saved reports.')
+      })
+      .finally(() => {
+        if (!cancelled) setRequestsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [patientId, sampleRequests])
   useEffect(() => {
     if (!creating && !selected && !help) return
     const previous = document.activeElement as HTMLElement | null
@@ -83,10 +113,10 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
   }, [creating, selected, help])
   function reportPrescription(prescription: Prescription) {
     if (!prescription.active) return
-    setStep(1); setCreating(true); setNotice('')
+    setStep(1); setCreating(true); setNotice(''); setRequestError('')
     setForm({ name: profile.name, birth: profile.birth, email: profile.email,
       prescriptionId: prescription.id, medication: prescription.medication,
-      issue: '', alternative: 'A lower-cost generic, if appropriate',
+      issue: '',
       pharmacy: prescription.pharmacy, provider: prescription.provider, updates: false })
   }
   function refreshPrescriptions() {
@@ -96,12 +126,37 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
   }
   function choosePrescription() { setPage('My prescriptions') }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
     if (step > 0 && !prescriptions.some(prescription => prescription.id === form.prescriptionId && prescription.active)) return
     if (step < 2) { setStep(step + 1); return }
-    const request: Request = { prescriptionId: form.prescriptionId, preference: form.alternative, provider: form.provider, id: `DU-${1043 + requests.length}`, medication: form.medication, issue: form.issue, pharmacy: form.pharmacy, date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), status: 'Submitted' }
-    setRequests([request, ...requests]); setCreating(false); setPage('My requests'); setNotice(`Demo request ${request.id} created. No information has been sent to a provider.`)
+    let request: Request = { prescriptionId: form.prescriptionId, provider: form.provider, id: `DU-${1043 + requests.length}`, medication: form.medication, issue: form.issue, pharmacy: form.pharmacy, date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), status: 'Submitted' }
+    if (patientId !== undefined && !sampleRequests) {
+      try {
+        const response = await fetch(`/api/reports/${patientId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prescription_id: Number(form.prescriptionId), issue: form.issue }),
+        })
+        const result = await response.json() as SavedReport | { detail?: unknown }
+        if (!response.ok || !('id' in result)) {
+          throw new Error('detail' in result && typeof result.detail === 'string' ? result.detail : 'Unable to save your report.')
+        }
+        request = {
+          id: `DU-${result.id}`,
+          prescriptionId: String(result.prescription_id),
+          medication: result.medication,
+          issue: result.issue,
+          pharmacy: '',
+          date: new Date(result.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          status: result.status,
+        }
+      } catch (error) {
+        setRequestError(error instanceof Error ? error.message : 'Unable to save your report. Please try again.')
+        return
+      }
+    }
+    setRequests(current => [request, ...current]); setCreating(false); setPage('My requests'); setNotice(sampleRequests ? `Demo request ${request.id} created. No information has been sent to a provider.` : `Report ${request.id} saved to your account.`)
   }
 
   const pending = requests.filter(r => r.status !== 'Prescription sent').length
@@ -117,7 +172,7 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
       <div className="page-heading"><div><div className="eyebrow">YOUR HEALTH, A LITTLE SIMPLER</div><h1>{page === 'Overview' ? `Welcome back, ${profile.name.split(' ')[0]}.` : page}</h1><p>{page === 'Overview' ? 'Let’s get your prescription moving in the right direction.' : page === 'My requests' ? 'Follow your requests, from the first step to your pharmacy.' : page === 'My prescriptions' ? 'Choose the prescription you need help with.' : 'Keep your contact information up to date.'}</p></div><div className="date-label">Patient care, connected <span className="green-dot"/></div></div>
       {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss notification" onClick={() => setNotice('')}>×</button></div>}
       {page === 'Overview' && <>
-        <section className="hero"><div className="hero-copy"><span className="hero-tag"><span/> A clearer path to your prescription</span><h2>Your medication.<br/>More within reach.</h2><p>Too expensive, not covered, or a medical conflict?<br className="desktop-break"/> Report the problem for review.</p><button className="primary" onClick={choosePrescription}><Icon name="plus" size={18}/> Report a prescription problem <Icon name="arrow" size={18}/></button><small>Just a few minutes to get started.</small></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="floating-plus">+</div><div className="rx-card"><span className="rx-symbol">℞</span><div className="art-line long"/><div className="art-line"/><div className="art-med"><span className="capsule"/><div><div className="art-line long"/><div className="art-line"/></div></div><span className="art-card-check"><Icon name="check" size={16}/> Connected to your care</span></div><div className="art-badge"><span><Icon name="check" size={23}/></span>One step closer<br/><strong>to feeling better.</strong></div></div></section>
+        <section className="hero"><div className="hero-copy"><span className="hero-tag"><span/> A clearer path to your prescription</span><h2>Your medication.<br/>More within reach.</h2><p>Select an active prescription below<br className="desktop-break"/> to report a problem.</p></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="floating-plus">+</div><div className="rx-card"><span className="rx-symbol">℞</span><div className="art-line long"/><div className="art-line"/><div className="art-med"><span className="capsule"/><div><div className="art-line long"/><div className="art-line"/></div></div><span className="art-card-check"><Icon name="check" size={16}/> Connected to your care</span></div><div className="art-badge"><span><Icon name="check" size={23}/></span>One step closer<br/><strong>to feeling better.</strong></div></div></section>
         <section className="stats" aria-label="Request summary">{[{ title: 'Total requests', value: requests.length, sub: 'Your care, all in one place', icon: 'file', color: 'blue' }, { title: 'Awaiting provider', value: pending, sub: 'We’ll keep you in the loop', icon: 'clock', color: 'amber' }, { title: 'Prescription sent', value: requests.length - pending, sub: 'Check with your pharmacy', icon: 'check', color: 'green' }].map(s => <div className="stat" key={s.title}><span className={`stat-icon ${s.color}`}><Icon name={s.icon}/></span><div><span>{s.title}</span><strong>{s.value}</strong><small>{s.sub}</small></div></div>)}</section>
       </>}
       {(page === 'Overview' || page === 'My prescriptions') && <section className="panel prescription-panel" aria-labelledby="prescriptions-title" aria-busy={prescriptionsLoading}>
@@ -125,21 +180,21 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
         {prescriptionsLoading ? <p className="prescription-empty" role="status">Loading your prescriptions…</p> : prescriptionsError ? <div className="prescription-empty" role="alert"><p>{prescriptionsError}</p><button className="secondary" onClick={refreshPrescriptions}>Try again</button></div> : prescriptions.length === 0 ? <div className="prescription-empty"><h3>No active prescriptions linked yet</h3><p>Your account is ready, but there are no active prescriptions attached to it. Once records are linked, they will appear here.</p></div> : <div className="prescription-list">{prescriptions.map(prescription => <button className="prescription-row" key={prescription.id} disabled={!prescription.active} onClick={() => reportPrescription(prescription)}><span className="med-icon"><Icon name="pill" size={23}/></span><span className="prescription-info"><strong>{prescription.medication}</strong>{prescription.instructions && <small>{prescription.instructions}</small>}</span><span className="report-link">{prescription.active ? 'Report a problem' : 'Inactive'}<Icon name="arrow" size={16}/></span></button>)}</div>}
 
       </section>}
-      {page !== 'My prescriptions' && (page !== 'My profile' ? <div className={page === 'Overview' ? 'content-grid' : ''}><section className="panel requests-panel"><div className="section-heading"><div><h2>{page === 'Overview' ? 'Recent requests' : 'Your requests'}</h2><p>A little progress, a little peace of mind.</p></div>{page === 'Overview' ? <button className="text-button" onClick={() => setPage('My requests')}>View all <Icon name="arrow" size={16}/></button> : <button className="primary" onClick={choosePrescription}><Icon name="plus" size={16}/> New request</button>}</div>{page === 'My requests' && <div className="filters">{['All requests', 'Awaiting provider', 'Prescription sent'].map(f => <button key={f} className={filter === f ? 'selected' : ''} onClick={() => setFilter(f)}>{f}</button>)}</div>}<div className="request-list">{requests.length === 0 && <div className="empty-requests"><h3>Your next step starts here.</h3><p>No requests yet. Choose an existing prescription to try the request flow.</p><button className="primary" onClick={choosePrescription}>Report a prescription problem</button></div>}{requests.filter(r => page === 'Overview' || filter === 'All requests' || (filter === 'Awaiting provider' ? r.status !== 'Prescription sent' : r.status === filter)).slice(0, page === 'Overview' ? 3 : undefined).map(r => <button className="request-row" key={r.id} onClick={() => setSelected(r)}><span className="med-icon"><Icon name="pill" size={23}/></span><div className="request-info"><strong>{r.medication}</strong><span>{r.issue}</span><small>{r.id} <b>·</b> {r.date}</small></div><div className="request-end"><span className={`status ${r.status === 'Prescription sent' ? 'sent' : 'pending'}`}><span/>{r.status}</span><span className="detail-link">View details ↗</span></div></button>)}</div><div className="panel-foot"><Icon name="shield" size={15}/> Sample data for preview. New requests reset when you refresh.</div></section>
-      {page === 'Overview' && <section className="panel how-panel"><span className="eyebrow">HERE FOR EVERY STEP</span><h2>A simpler way forward.</h2><div className="steps">{[['Tell us what’s getting in the way', 'Choose a prescription and tell us the issue.'], ['Your provider takes a look', 'They review your request and options.'], ['Your next step, delivered', 'Track updates right here in your portal.']].map(([title, desc], i) => <div className="how-step" key={title}><span>{i + 1}</span><div><h3>{title}</h3><p>{desc}</p></div></div>)}</div><button className="text-button" onClick={() => setHelp(true)}>How it works <Icon name="arrow" size={16}/></button></section>}</div> : <section className="panel profile-panel"><h2>Personal information</h2><p>{sampleRequests ? 'These are sample details for this demo.' : 'Your account is saved. Profile edits on this screen are not saved to the backend yet.'}</p><form onSubmit={e => { e.preventDefault(); setNotice('Profile updated for this demo session.') }}><label>Full name<input required value={profile.name} onChange={e => setProfile({ ...profile, name: e.target.value })}/></label><label>Email address<input required type="email" value={profile.email} onChange={e => setProfile({ ...profile, email: e.target.value })}/></label><label>Date of birth<input required type="date" max={new Date().toISOString().slice(0, 10)} value={profile.birth} onChange={e => setProfile({ ...profile, birth: e.target.value })}/></label><button className="primary">Save changes</button></form></section>)}
+  {page !== 'My prescriptions' && (page !== 'My profile' ? <div className={page === 'Overview' ? 'content-grid' : ''}><section className="panel requests-panel"><div className="section-heading"><div><h2>{page === 'Overview' ? 'Recent requests' : 'Your requests'}</h2><p>A little progress, a little peace of mind.</p></div>{page === 'Overview' ? <button className="text-button" onClick={() => setPage('My requests')}>View all <Icon name="arrow" size={16}/></button> : <button className="primary" onClick={choosePrescription}><Icon name="plus" size={16}/> New request</button>}</div>{page === 'My requests' && <div className="filters">{['All requests', 'Awaiting provider', 'Prescription sent'].map(f => <button key={f} className={filter === f ? 'selected' : ''} onClick={() => setFilter(f)}>{f}</button>)}</div>}{requestError && <p className="prescription-state" role="alert">{requestError}</p>}{requestsLoading ? <p className="prescription-state">Loading saved reports…</p> : <div className="request-list">{requests.length === 0 && <div className="empty-requests"><h3>Your next step starts here.</h3><p>No reports yet. Select an active prescription to report a problem.</p></div>}{requests.filter(r => page === 'Overview' || filter === 'All requests' || (filter === 'Awaiting provider' ? r.status !== 'Prescription sent' : r.status === filter)).slice(0, page === 'Overview' ? 3 : undefined).map(r => <button className="request-row" key={r.id} onClick={() => setSelected(r)}><span className="med-icon"><Icon name="pill" size={23}/></span><div className="request-info"><strong>{r.medication}</strong><span>{r.issue}</span><small>{r.id} <b>·</b> {r.date}</small></div><div className="request-end"><span className={`status ${r.status === 'Prescription sent' ? 'sent' : 'pending'}`}><span/>{r.status}</span><span className="detail-link">View details ↗</span></div></button>)}</div>}<div className="panel-foot">{sampleRequests ? <><Icon name="shield" size={15}/> Sample data for preview. New requests reset when you refresh.</> : <><Icon name="shield" size={15}/> Reports are saved to your patient account.</>}</div></section>
+  {page === 'Overview' && <section className="panel how-panel"><span className="eyebrow">HERE FOR EVERY STEP</span><h2>A simpler way forward.</h2><div className="steps">{[['Tell us what’s getting in the way', 'Choose a prescription and tell us the issue.'], ['Your provider takes a look', 'They review your report and options.'], ['Your next step, delivered', 'Track updates right here in your portal.']].map(([title, desc], i) => <div className="how-step" key={title}><span>{i + 1}</span><div><h3>{title}</h3><p>{desc}</p></div></div>)}</div><button className="text-button" onClick={() => setHelp(true)}>How it works <Icon name="arrow" size={16}/></button></section>}</div> : <section className="panel profile-panel"><h2>Personal information</h2><p>{sampleRequests ? 'These are sample details for this demo.' : 'Your account is saved. Profile edits on this screen are not saved to the backend yet.'}</p><form onSubmit={e => { e.preventDefault(); setNotice('Profile updated for this demo session.') }}><label>Full name<input required value={profile.name} onChange={e => setProfile({ ...profile, name: e.target.value })}/></label><label>Email address<input required type="email" value={profile.email} onChange={e => setProfile({ ...profile, email: e.target.value })}/></label><label>Date of birth<input required type="date" max={new Date().toISOString().slice(0, 10)} value={profile.birth} onChange={e => setProfile({ ...profile, birth: e.target.value })}/></label><button className="primary">Save changes</button></form></section>)}
       <footer><span className="footer-brand">RxRescue</span><span>A better connection to your care.</span><button onClick={() => setHelp(true)}>Questions? We’re here to help <Icon name="arrow" size={14}/></button></footer>
     </main></div>
     {creating && <div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="request-title"><button className="close" aria-label="Close request form" onClick={() => setCreating(false)}>×</button><span className="eyebrow">LET’S TAKE THE NEXT STEP</span><h2 id="request-title">Report a prescription problem</h2><p className="demo-note">Request preview — this step does not save a request or send anything to your provider.</p><div className="form-progress">{['Your request', 'Review'].map((s, i) => <span className={i + 1 <= step ? 'current' : ''} key={s}>{i + 1}. {s}</span>)}</div><form onSubmit={submit}>
       {step === 1 && <div className="form-fields">
         <div className="chosen-prescription"><span className="eyebrow">SELECTED PRESCRIPTION</span><h3>{form.medication}</h3><button className="text-button" type="button" onClick={() => { setCreating(false); choosePrescription() }}>Choose a different prescription</button></div>
-        <label>What’s the issue?<select required value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })}><option value="">Select an issue</option><option>No insurance coverage</option><option>Too expensive</option><option>Medical conflicts</option><option>Medication is unavailable</option><option>I’d like a generic option</option><option>Other medication issue</option></select></label>
-        <label>What would you like your provider to consider?<select required value={form.alternative} onChange={e => setForm({ ...form, alternative: e.target.value })}><option>A lower-cost generic, if appropriate</option><option>Let my provider recommend an alternative</option></select></label>
-        <p className="muted">Your selected prescription stays attached to this request. Your provider would review whether a change is appropriate.</p>
+        <label>What’s the issue?<select required value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })}><option value="">Select an issue</option><option>Too expensive</option><option>No insurance coverage</option><option>Medical conflicts</option></select></label>
+        <p className="muted">Your selected prescription stays attached to this report for provider review.</p>
       </div>}
-      {step === 2 && <><dl className="review">{[['Patient', form.name], ['Selected prescription', form.medication], ['Issue', form.issue], ['Requested change', form.alternative], ['Provider', form.provider], ['Pharmacy', form.pharmacy]].map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl><label className="checkbox"><input type="checkbox" checked={form.updates} onChange={e => setForm({ ...form, updates: e.target.checked })}/>Email me when my request status changes (demo only).</label><p className="muted">Your provider decides whether a prescription change is appropriate. Submission does not guarantee a new prescription.</p></>}
-      <div className="modal-actions"><button type="button" className="secondary" onClick={() => step > 1 ? setStep(step - 1) : setCreating(false)}>{step > 1 ? 'Back' : 'Cancel'}</button><button className="primary" type="submit" disabled={step === 1 && prescriptions.length === 0}>{step === 2 ? 'Create demo report' : 'Continue'}<Icon name="arrow" size={16}/></button></div></form></section></div>}
-    {selected && <div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="detail-title"><button className="close" aria-label="Close request details" onClick={() => setSelected(null)}>×</button><span className="eyebrow">REQUEST {selected.id}</span><h2 id="detail-title">{selected.medication}</h2><p>{selected.issue}</p><div className="tracking">{['Submitted', 'Under review', 'Prescription sent'].map((s, i) => <div className={i <= ['Submitted', 'Under review', 'Prescription sent'].indexOf(selected.status) ? 'complete' : ''} key={s}><span><Icon name={i <= ['Submitted', 'Under review', 'Prescription sent'].indexOf(selected.status) ? 'check' : 'clock'} size={18}/></span><strong>{s}</strong></div>)}</div><dl className="review"><div><dt>Pharmacy</dt><dd>{selected.pharmacy}</dd></div>{selected.preference && <div><dt>Requested change</dt><dd>{selected.preference}</dd></div>}{selected.provider && <div><dt>Prescribing provider</dt><dd>{selected.provider}</dd></div>}<div><dt>Requested</dt><dd>{selected.date}</dd></div></dl><p className="demo-note">Demo status only. No provider has been contacted and no prescription has been issued by this portal.</p><button className="primary" onClick={() => setSelected(null)}>Back to my requests</button></section></div>}
-    {help && <div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><button className="close" aria-label="Close help" onClick={() => setHelp(false)}>×</button><span className="eyebrow">A LITTLE GUIDANCE</span><h2 id="help-title">From request to prescription.</h2><div className="help-content"><h3>1. Share your medication issue</h3><p>Choose an existing prescription, tell us the issue, and ask your provider to consider a generic or another alternative. Your linked prescriptions are loaded from the patient database. Provider and pharmacy details are not available from the current API.</p><h3>2. Review your request</h3><p>Check the selected prescription and your requested change before submitting. In the proposed workflow, Impiricus would route the selected prescription and your request to your provider through DocUpdate.</p><h3>3. Follow your progress</h3><p>Your provider reviews the request and decides on next steps. If they issue a new prescription, it is sent to your pharmacy.</p></div><p className="demo-note">This frontend preview is not connected to clinical services. Request submission, status updates, and email delivery are demonstrations.</p></section></div>}
+      {requestError && creating && <p className="auth-error" role="alert">{requestError}</p>}
+      {step === 2 && <><dl className="review">{[['Patient', form.name], ['Selected prescription', form.medication], ['Issue', form.issue], ['Provider', form.provider], ['Pharmacy', form.pharmacy]].map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl><label className="checkbox"><input type="checkbox" checked={form.updates} onChange={e => setForm({ ...form, updates: e.target.checked })}/>Email me when my report status changes (demo only).</label><p className="muted">Your provider reviews the reported issue and decides on next steps.</p></>}
+      <div className="modal-actions"><button type="button" className="secondary" onClick={() => step > 1 ? setStep(step - 1) : setCreating(false)}>{step > 1 ? 'Back' : 'Cancel'}</button><button className="primary" type="submit" disabled={step === 1 && !prescriptions.some(prescription => prescription.id === form.prescriptionId && prescription.active)}>{step === 2 ? 'Submit report' : 'Continue'}<Icon name="arrow" size={16}/></button></div></form></section></div>}
+    {selected && <div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="detail-title"><button className="close" aria-label="Close request details" onClick={() => setSelected(null)}>×</button><span className="eyebrow">REPORT {selected.id}</span><h2 id="detail-title">{selected.medication}</h2><p>{selected.issue}</p><div className="tracking">{['Submitted', 'Under review', 'Prescription sent'].map((s, i) => <div className={i <= ['Submitted', 'Under review', 'Prescription sent'].indexOf(selected.status) ? 'complete' : ''} key={s}><span><Icon name={i <= ['Submitted', 'Under review', 'Prescription sent'].indexOf(selected.status) ? 'check' : 'clock'} size={18}/></span><strong>{s}</strong></div>)}</div><dl className="review"><div><dt>Pharmacy</dt><dd>{selected.pharmacy}</dd></div>{selected.provider && <div><dt>Prescribing provider</dt><dd>{selected.provider}</dd></div>}<div><dt>Reported</dt><dd>{selected.date}</dd></div></dl><p className="demo-note">No provider has been contacted and no prescription has been changed by this portal.</p><button className="primary" onClick={() => setSelected(null)}>Back to my requests</button></section></div>}
+    {help && <div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><button className="close" aria-label="Close help" onClick={() => setHelp(false)}>×</button><span className="eyebrow">A LITTLE GUIDANCE</span><h2 id="help-title">From report to review.</h2><div className="help-content"><h3>1. Share your medication issue</h3><p>Choose an active prescription and tell us what is getting in the way. The prescription details are included with your report.</p><h3>2. Review your report</h3><p>Check the selected prescription and issue before submitting. This prototype stores reports for your account but does not send them to a provider.</p><h3>3. Follow your progress</h3><p>Your provider reviews the issue and decides on next steps. This portal does not change your prescription.</p></div><p className="demo-note">Report history is saved locally in the development database; provider messages and status updates are not connected.</p></section></div>}
   </div>
 }
 export default App

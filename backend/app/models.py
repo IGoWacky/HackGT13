@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Date, Integer, String, Boolean, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import Column, Date, DateTime, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -22,6 +24,16 @@ class Prescription(Base):
     dosage = Column(String)
     instructions = Column(String)
     active = Column(Boolean, default=True)
+
+class PrescriptionIssueReport(Base):
+    __tablename__ = "prescription_issue_reports"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    prescription_id = Column(Integer, ForeignKey("prescriptions.id"), nullable=False)
+    issue = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="Submitted")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 class RxRescueMessageData(Base):
     __tablename__ = "message_data"
