@@ -71,12 +71,13 @@ The repository currently contains:
 
 - **Frontend:** A React, TypeScript, and Vite patient-portal preview with local
   sample requests.
-- **Backend:** FastAPI and SQLAlchemy, with `GET /patients/{patient_id}` and
-  `GET /prescriptions/{patient_id}` routes. Interactive API docs are at `/docs`.
+- **Backend:** FastAPI and SQLAlchemy, with `POST /patients` for signup plus
+  `GET /patients/{patient_id}` and `GET /prescriptions/{patient_id}` routes.
+  Interactive API docs are at `/docs`.
 
-The patient portal, medication dataset, recommendation logic, HCP workflow,
-messenger, and prescription update flow are planned functionality and have not
-yet been implemented.
+Signup stores a local demo account with a one-way password hash. Login is not
+connected yet. The patient-specific recommendation engine and clinical workflow
+are still in development.
 
 ## Quick start on macOS
 
@@ -142,9 +143,8 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. **Current blocker:** `frontend/src/main.tsx`
-imports `frontend/src/Auth.tsx`, which is missing from the repository, so the
-frontend will not compile until that module is restored or implemented.
+Open the local URL printed by Vite. The signup form sends profile details to
+FastAPI through Vite's `/api` development proxy.
 
 ### Run a synthetic demo packet
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Date, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -10,6 +10,7 @@ class Patient(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    date_of_birth = Column(Date, nullable=True)
     medical_history = Column(String)
 
 class Prescription(Base):
