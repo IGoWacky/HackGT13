@@ -1,3 +1,4 @@
+import Brand from './Brand'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import App from './App'
@@ -78,7 +79,7 @@ export default function Auth() {
 
   return <div className="auth-shell">
     <section className="auth-story" aria-label="About RxRescue">
-      <a className="brand" href="#" onClick={e => { e.preventDefault(); if (signup) switchMode() }} aria-label="RxRescue home"><span className="brand-mark">+</span>Rx<span>Rescue</span><i /></a>
+      <a className="brand" href="#" onClick={e => { e.preventDefault(); if (signup) switchMode() }} aria-label="RxRescue home"><Brand /></a>
       <div className="auth-story-content">
         <span className="eyebrow">A BETTER CONNECTION TO YOUR CARE</span>
         <h1>Your next step<br />to a prescription<br /><span>within reach.</span></h1>

@@ -1,3 +1,4 @@
+import Brand from './Brand'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import './App.css'
@@ -229,7 +230,7 @@ function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps)
     : ['Submitted', 'Under review', 'Prescription sent']
   return <div className="app-shell">
     <aside className="sidebar">
-      <a className="brand" href="#" onClick={e => { e.preventDefault(); setPage('Overview') }}><span className="brand-mark"><Icon name="plus" size={26}/></span>Rx<span>Rescue</span><i/></a>
+      <a className="brand" href="#" onClick={e => { e.preventDefault(); setPage('Overview') }}><Brand /></a>
       <div className="portal-label">PATIENT PORTAL</div>
       <nav aria-label="Main navigation">{(['Overview', 'My prescriptions', 'My requests', 'My profile'] as Page[]).map((item, i) => <button key={item} className={page === item ? 'nav-item active' : 'nav-item'} onClick={() => setPage(item)}><Icon name={['grid', 'pill', 'file', 'user'][i]}/>{item}{item === 'My requests' && <span className="nav-count">{requests.length}</span>}</button>)}</nav>
       <div className="sidebar-bottom"><div className="support-card"><span className="support-icon"><Icon name="help"/></span><h3>A little help along the way.</h3><p>Learn what happens after you send a request.</p><button className="text-button" onClick={() => setHelp(true)}>Visit help center <Icon name="arrow" size={16}/></button></div><div className="sidebar-user"><span className="avatar">{profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()}</span><div><strong>{profile.name}</strong><small>Personal account</small></div><button aria-label="Open profile" onClick={() => setPage('My profile')}>↗</button></div><button className="sign-out" disabled={isResetting || isSavingReport} onClick={onSignOut}>Sign out</button></div>

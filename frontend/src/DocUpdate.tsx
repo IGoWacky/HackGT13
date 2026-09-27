@@ -1,3 +1,4 @@
+import Brand from './Brand'
 import { useEffect, useState } from 'react'
 import { createStandalonePrescription, loadDocUpdatePatients, loadOpenReports, loadReplacementOptions, resolveOpenReport } from './api'
 import type { DocUpdatePatient, OpenReport, ReplacementOption } from './api'
@@ -110,7 +111,7 @@ export default function DocUpdate() {
   return (
     <main className="docupdate-page">
       <header className="docupdate-header">
-        <a className="docupdate-brand" href="/">RxRescue</a>
+        <a className="docupdate-brand" href="/" aria-label="RxRescue home"><Brand /></a>
         <span>DOCUPDATE <i /> CLINICIAN WORKQUEUE</span>
       </header>
       <section className="docupdate-content" aria-labelledby="docupdate-title">
