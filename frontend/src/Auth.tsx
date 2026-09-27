@@ -1,0 +1,102 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import App from './App'
+import './Auth.css'
+
+type Profile = { name: string; email: string; birth: string }
+type PreviewSession = { profile: Profile; sampleRequests: boolean }
+
+// Frontend preview only. Passwords are never persisted or sent to a server.
+export default function Auth() {
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [session, setSession] = useState<PreviewSession | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [values, setValues] = useState({ name: '', birth: '', email: '', password: '', confirm: '' })
+  const signup = mode === 'signup'
+
+  function switchMode() {
+    setMode(signup ? 'login' : 'signup')
+    setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
+    setShowPassword(false)
+    setMessage('')
+    setError('')
+  }
+
+  function enterDemo() {
+    setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
+    setSession({ profile: { name: 'Alex Morgan', email: 'alex@example.com', birth: '1994-06-15' }, sampleRequests: true })
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setMessage('')
+    setError('')
+    if (signup && !values.name.trim()) {
+      setError('Please enter your full name.')
+      return
+    }
+    if (signup && values.password !== values.confirm) {
+      setError('Your passwords don’t match. Please try again.')
+      return
+    }
+    if (!signup) {
+      // Do not imply that arbitrary credentials have authenticated a patient.
+      setValues(current => ({ ...current, password: '' }))
+      setMessage('Login isn’t connected yet, so we can’t verify an account. Use “Explore the demo” to look around.')
+      return
+    }
+    const profile = { name: values.name.trim(), email: values.email.trim(), birth: values.birth }
+    setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
+    setSession({ profile, sampleRequests: false })
+  }
+
+  if (session) {
+    return <App initialProfile={session.profile} sampleRequests={session.sampleRequests} onSignOut={() => {
+      setSession(null)
+      setMode('login')
+      setShowPassword(false)
+      setError('')
+      setMessage('You’ve left the preview. Your session information has been cleared.')
+    }} />
+  }
+
+  return <div className="auth-shell">
+    <section className="auth-story" aria-label="About RxRescue">
+      <a className="brand" href="#" onClick={e => { e.preventDefault(); if (signup) switchMode() }} aria-label="RxRescue home"><span className="brand-mark">+</span>Rx<span>Rescue</span><i /></a>
+      <div className="auth-story-content">
+        <span className="eyebrow">A BETTER CONNECTION TO YOUR CARE</span>
+        <h1>Your next step<br />to a prescription<br /><span>within reach.</span></h1>
+        <p>When your medication costs too much or isn’t covered, you don’t have to figure it out alone.</p>
+        <div className="auth-illustration" aria-hidden="true"><div className="auth-ring"/><div className="auth-paper"><span>℞</span><div/><div/><p>Care that keeps moving.</p><span className="auth-paper-pill"/></div><div className="auth-float"><span>✓</span> A little less worry.<br/><strong>A little more support.</strong></div></div>
+        <div className="auth-benefits"><span><b>01</b> Share your medication issue</span><span><b>02</b> Request a provider review</span><span><b>03</b> Follow every next step</span></div>
+      </div>
+      <small>RxRescue · Patient portal</small>
+    </section>
+    <section className="auth-main">
+      <div className="auth-top"><span>YOUR CARE STARTS HERE</span><span className="demo-tag">Frontend preview</span></div>
+      <div className="auth-card">
+        <div className="auth-label">{signup ? 'A FRESH START' : 'GOOD TO SEE YOU'}</div>
+        <h2>{signup ? 'Let’s get to know you.' : 'Welcome back.'}</h2>
+        <p className="auth-intro">{signup ? 'A few details to start your patient profile.' : 'Log in to keep your care moving forward.'}</p>
+        <div className="auth-tabs" aria-label="Account options"><button type="button" aria-pressed={!signup} className={!signup ? 'selected' : ''} onClick={() => { if (signup) switchMode() }}>Log in</button><button type="button" aria-pressed={signup} className={signup ? 'selected' : ''} onClick={() => { if (!signup) switchMode() }}>Sign up</button></div>
+        <div className="auth-preview-note">{signup ? 'Preview only: use sample details. No account will be created, and your information disappears when you leave or refresh.' : 'Accounts aren’t connected yet. Login won’t verify credentials. You can explore the portal with sample data below.'}</div>
+        {message && <p className="auth-message" role="status">{message}</p>}
+        {error && <p className="auth-error" role="alert" id="auth-error">{error}</p>}
+        <form onSubmit={submit}>
+          {signup && <div className="auth-name-fields"><label htmlFor="full-name">Full name<input id="full-name" name="name" autoComplete="name" required maxLength={120} value={values.name} onChange={e => setValues({ ...values, name: e.target.value })} placeholder="Alex Morgan"/></label><label htmlFor="birth">Date of birth<input id="birth" name="birth" type="date" autoComplete="bday" required max={new Date().toISOString().slice(0, 10)} value={values.birth} onChange={e => setValues({ ...values, birth: e.target.value })}/></label></div>}
+          <label htmlFor="email">Email address<input id="email" name="email" type="email" autoComplete="email" required value={values.email} onChange={e => setValues({ ...values, email: e.target.value })} placeholder="you@example.com"/></label>
+          <label htmlFor="password">Password<div className="auth-password"><input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} required minLength={signup ? 8 : undefined} aria-describedby={signup ? 'password-hint' : undefined} value={values.password} onChange={e => setValues({ ...values, password: e.target.value })} placeholder={signup ? 'Create a sample password' : 'Enter your password'}/><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
+          {signup && <><small id="password-hint" className="auth-hint">Use at least 8 characters for this preview. Passwords aren’t saved.</small><label htmlFor="confirm-password">Confirm password<input id="confirm-password" name="confirm" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required aria-invalid={!!error} aria-describedby={error ? 'auth-error' : undefined} value={values.confirm} onChange={e => { setValues({ ...values, confirm: e.target.value }); setError('') }} placeholder="Enter your sample password again"/></label></>}
+          {!signup && <button className="auth-forgot text-button" type="button" onClick={() => setMessage('Password reset will be available when accounts are connected. No reset email has been sent.')}>Forgot password?</button>}
+          <button className="primary auth-submit" type="submit">{signup ? 'Preview my patient profile' : 'Log in'}<span aria-hidden="true">→</span></button>
+        </form>
+        <div className="auth-divider"><span>or take a look around</span></div>
+        <button type="button" className="auth-demo-button" onClick={enterDemo}>Explore the demo <span aria-hidden="true">↗</span></button>
+        <p className="auth-switch">{signup ? 'Already have an account?' : 'New to RxRescue?'} <button type="button" onClick={switchMode}>{signup ? 'Log in' : 'Sign up'}</button></p>
+      </div>
+      <footer className="auth-footer">A little less friction. A little more care.</footer>
+    </section>
+  </div>
+}
