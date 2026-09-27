@@ -43,9 +43,43 @@ export default function Auth() {
       return
     }
     if (!signup) {
-      // Do not imply that arbitrary credentials have authenticated a patient.
-      setValues(current => ({ ...current, password: '' }))
-      setMessage('Login isn’t connected yet, so we can’t verify an account. Use “Explore the demo” to look around.')
+      setIsSubmitting(true)
+      try {
+        const response = await fetch('/api/patients/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: values.email.trim(), password: values.password }),
+        })
+        const result = await response.json() as {
+          detail?: unknown
+          name?: unknown
+          email?: unknown
+          date_of_birth?: unknown
+        }
+        if (!response.ok) {
+          throw new Error(typeof result.detail === 'string' ? result.detail : 'Invalid email or password.')
+        }
+        if (typeof result.name !== 'string' || typeof result.email !== 'string') {
+          throw new Error('The server returned an invalid patient profile.')
+        }
+
+        setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
+        setSession({
+          profile: {
+            name: result.name,
+            email: result.email,
+            birth: typeof result.date_of_birth === 'string' ? result.date_of_birth : '',
+          },
+          sampleRequests: false,
+        })
+      } catch (requestError) {
+        setValues(current => ({ ...current, password: '' }))
+        setError(requestError instanceof Error
+          ? requestError.message
+          : 'Unable to log in. Check that the backend is running and try again.')
+      } finally {
+        setIsSubmitting(false)
+      }
       return
     }
 
@@ -107,7 +141,7 @@ export default function Auth() {
         <h2>{signup ? 'Let’s get to know you.' : 'Welcome back.'}</h2>
         <p className="auth-intro">{signup ? 'A few details to start your patient profile.' : 'Log in to keep your care moving forward.'}</p>
         <div className="auth-tabs" aria-label="Account options"><button type="button" aria-pressed={!signup} className={!signup ? 'selected' : ''} onClick={() => { if (signup) switchMode() }}>Log in</button><button type="button" aria-pressed={signup} className={signup ? 'selected' : ''} onClick={() => { if (!signup) switchMode() }}>Sign up</button></div>
-        <div className="auth-preview-note">{signup ? 'Create a demo account using sample details. Your profile is stored in the local development database.' : 'Login isn’t connected yet, so credentials cannot be verified. You can explore the portal with sample data below.'}</div>
+        <div className="auth-preview-note">{signup ? 'Create a demo account using sample details. Your profile is stored in the local development database.' : 'Login using the credentials you signed up with to access the portal.'}</div>
         {message && <p className="auth-message" role="status">{message}</p>}
         {error && <p className="auth-error" role="alert" id="auth-error">{error}</p>}
         <form onSubmit={submit}>

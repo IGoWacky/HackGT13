@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import hmac
 import secrets
 from datetime import date
 
@@ -38,6 +39,11 @@ class PatientCreate(BaseModel):
         return value
 
 
+class PatientLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
+
+
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac(
@@ -48,12 +54,44 @@ def hash_password(password: str) -> str:
     return f"pbkdf2_sha256${PASSWORD_HASH_ITERATIONS}${salt_text}${digest_text}"
 
 
+def verify_password(password: str, encoded_hash: str) -> bool:
+    try:
+        algorithm, iterations_text, salt_text, digest_text = encoded_hash.split("$")
+        iterations = int(iterations_text)
+        if algorithm != "pbkdf2_sha256" or not 100_000 <= iterations <= 2_000_000:
+            return False
+        salt = base64.b64decode(salt_text, altchars=b"-_", validate=True)
+        expected_digest = base64.b64decode(digest_text, altchars=b"-_", validate=True)
+    except (ValueError, UnicodeError):
+        return False
+
+    actual_digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations
+    )
+    return hmac.compare_digest(actual_digest, expected_digest)
+
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+@router.post("/login")
+def login_patient(credentials: PatientLogin, db: Session = Depends(get_db)):
+    email = str(credentials.email).lower()
+    patient = db.query(Patient).filter(Patient.email == email).first()
+    if patient is None or not verify_password(credentials.password, patient.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    return {
+        "id": patient.id,
+        "name": patient.name,
+        "email": patient.email,
+        "date_of_birth": patient.date_of_birth,
+    }
 
 
 @router.post("", status_code=201)
