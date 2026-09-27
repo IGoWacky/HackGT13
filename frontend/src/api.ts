@@ -193,7 +193,7 @@ export async function createStandalonePrescription(
   return result as CreatedPrescription
 }
 
-export async function resolveOpenReport(reportId: number, replacementKey: string): Promise<void> {
+export async function resolveOpenReport(reportId: number, replacementKey: string | null): Promise<void> {
   const result = await requestJson(`/reports/${reportId}/resolve`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -201,7 +201,8 @@ export async function resolveOpenReport(reportId: number, replacementKey: string
   })
   if (!result || typeof result !== 'object' || !('id' in result) || result.id !== reportId ||
       !('status' in result) || result.status !== 'Resolved' ||
-      !('replacement_prescription' in result) || !isPrescriptionSnapshot(result.replacement_prescription)) {
-    throw new Error('The server did not confirm the replacement prescription.')
+      !('replacement_prescription' in result) ||
+      (result.replacement_prescription !== null && !isPrescriptionSnapshot(result.replacement_prescription))) {
+    throw new Error('The server did not confirm that the request was resolved.')
   }
 }

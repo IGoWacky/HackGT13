@@ -89,14 +89,17 @@ export default function DocUpdate() {
     try {
       const replacementKey = selectedOptions[report.id]
       if (!replacementKey) throw new Error('Select a synthetic replacement prescription first.')
-      await resolveOpenReport(report.id, replacementKey)
+      const keepOriginal = replacementKey === 'keep-original'
+      await resolveOpenReport(report.id, keepOriginal ? null : replacementKey)
       setReports(current => current.filter(item => item.id !== report.id))
       setSelectedOptions(current => {
         const next = { ...current }
         delete next[report.id]
         return next
       })
-      setNotice(`Request DU-${report.id} resolved with a new synthetic prescription.`)
+      setNotice(keepOriginal
+        ? `Request DU-${report.id} resolved. The original prescription was left unchanged.`
+        : `Request DU-${report.id} resolved with a new synthetic prescription.`)
     } catch (resolveError) {
       setError(resolveError instanceof Error ? resolveError.message : 'Unable to resolve this request.')
     } finally {
@@ -214,6 +217,7 @@ export default function DocUpdate() {
                         disabled={resolvingId !== null}
                       >
                         <option value="">Choose a sample</option>
+                        <option value="keep-original">Keep original prescription unchanged</option>
                         {replacementOptions.map(option => (
                           <option key={option.key} value={option.key}>
                             {option.medication} · {option.dosage}
@@ -221,7 +225,9 @@ export default function DocUpdate() {
                         ))}
                       </select>
                       {selectedOptions[report.id] && <small className="docupdate-option-detail">
-                        {replacementOptions.find(option => option.key === selectedOptions[report.id])?.instructions}
+                        {selectedOptions[report.id] === 'keep-original'
+                          ? 'Resolve this request without changing or replacing the prescription.'
+                          : replacementOptions.find(option => option.key === selectedOptions[report.id])?.instructions}
                       </small>}
                     </td>
                     <td>
@@ -232,7 +238,7 @@ export default function DocUpdate() {
                         disabled={resolvingId !== null || !selectedOptions[report.id]}
                         aria-label={`Resolve request DU-${report.id}`}
                       >
-                        {resolvingId === report.id ? 'Resolving…' : 'Resolve'}
+                        {resolvingId === report.id ? 'Resolving…' : selectedOptions[report.id] === 'keep-original' ? 'Resolve unchanged' : 'Resolve with replacement'}
                       </button>
                     </td>
                   </tr>

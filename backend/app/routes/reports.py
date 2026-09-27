@@ -20,7 +20,7 @@ class ReportCreate(BaseModel):
 
 
 class ReportResolve(BaseModel):
-    replacement_key: str
+    replacement_key: str | None = None
 
 
 def get_db():
@@ -166,29 +166,33 @@ def resolve_report(
     if report.status in ("Resolved", "Prescription sent"):
         raise HTTPException(status_code=409, detail="Report is already closed")
 
-    replacement_option = next(
-        (option for option in DEMO_REPLACEMENT_OPTIONS if option["key"] == resolution.replacement_key),
-        None,
-    )
-    if replacement_option is None:
-        raise HTTPException(status_code=422, detail="Unknown replacement prescription")
-
     original = db.get(Prescription, report.prescription_id)
     if original is None or original.patient_id != report.patient_id:
         raise HTTPException(status_code=409, detail="Original prescription is unavailable")
 
-    replacement = Prescription(
-        patient_id=report.patient_id,
-        medication=replacement_option["medication"],
-        dosage=replacement_option["dosage"],
-        instructions=replacement_option["instructions"],
-        active=True,
-    )
-    original.active = False
-    db.add(replacement)
+    replacement = None
+    if resolution.replacement_key is not None:
+        replacement_option = next(
+            (option for option in DEMO_REPLACEMENT_OPTIONS if option["key"] == resolution.replacement_key),
+            None,
+        )
+        if replacement_option is None:
+            raise HTTPException(status_code=422, detail="Unknown replacement prescription")
+
+        replacement = Prescription(
+            patient_id=report.patient_id,
+            medication=replacement_option["medication"],
+            dosage=replacement_option["dosage"],
+            instructions=replacement_option["instructions"],
+            active=True,
+        )
+        original.active = False
+        db.add(replacement)
+
     try:
-        db.flush()
-        report.new_prescription_id = replacement.id
+        if replacement is not None:
+            db.flush()
+            report.new_prescription_id = replacement.id
         report.status = "Resolved"
         db.commit()
     except SQLAlchemyError:
@@ -197,7 +201,8 @@ def resolve_report(
 
     db.refresh(report)
     db.refresh(original)
-    db.refresh(replacement)
+    if replacement is not None:
+        db.refresh(replacement)
 
     return serialize_report(report, original, replacement)
 @router.post("/demo/reset")
