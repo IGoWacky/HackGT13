@@ -5,6 +5,21 @@ import { getReportResetEnabled, loadPrescriptions, resetPatientReports } from '.
 import type { Prescription, PrescriptionSnapshot } from './api'
 
 type Page = 'Overview' | 'My prescriptions' | 'My requests' | 'My profile'
+const portalPages: Page[] = ['Overview', 'My prescriptions', 'My requests', 'My profile']
+
+function pageStorageKey(patientId?: number) {
+  return `rxrescue.portal.page.${patientId ?? 'demo'}`
+}
+
+function readSavedPage(patientId?: number): Page {
+  try {
+    const savedPage = window.sessionStorage.getItem(pageStorageKey(patientId))
+    return portalPages.find(page => page === savedPage) ?? 'Overview'
+  } catch {
+    return 'Overview'
+  }
+}
+
 type Request = { prescriptionId?: string; provider?: string; id: string; medication: string; issue: string; pharmacy: string; date: string; status: 'Under review' | 'Prescription sent' | 'Submitted' | 'Resolved'; originalPrescription?: PrescriptionSnapshot; replacementPrescription?: PrescriptionSnapshot | null }
 type SavedReport = { id: number; prescription_id: number; medication: string; issue: string; status: Request['status']; created_at: string; original_prescription?: PrescriptionSnapshot; replacement_prescription?: PrescriptionSnapshot | null }
 const initialRequests: Request[] = [
@@ -39,7 +54,14 @@ type AppProps = {
 }
 
 function App({ initialProfile, sampleRequests, onSignOut, patientId }: AppProps) {
-  const [page, setPage] = useState<Page>('Overview')
+  const [page, setPage] = useState<Page>(() => readSavedPage(patientId))
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(pageStorageKey(patientId), page)
+    } catch {
+      // The portal remains navigable when browser storage is unavailable.
+    }
+  }, [page, patientId])
   const [resetEnabled, setResetEnabled] = useState(import.meta.env.DEV && sampleRequests)
   const [resetOpen, setResetOpen] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
