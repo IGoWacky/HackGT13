@@ -1,8 +1,10 @@
+import os
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from ..database import SessionLocal
 from ..models import Patient, Prescription, PrescriptionIssueReport, RxRescueMessageData
@@ -102,3 +104,35 @@ def reset_demo_reports(db: Session = Depends(get_db)):
         "deleted_reports": deleted_reports,
         "deleted_message_data": deleted_message_data,
     }
+
+
+# This destructive demo helper is off unless explicitly enabled on a local server.
+def demo_reset_enabled(request: Request) -> bool:
+    return (
+        os.environ.get("RXRESCUE_ENABLE_DEMO_RESET") == "1"
+        and request.client is not None
+        and request.client.host in {"127.0.0.1", "::1"}
+    )
+
+
+@router.get("/developer/status")
+def developer_status(request: Request):
+    return {"report_reset_enabled": demo_reset_enabled(request)}
+
+
+@router.delete("/developer/{patient_id}")
+def reset_reports(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    if not demo_reset_enabled(request):
+        raise HTTPException(status_code=404, detail="Developer reset is not enabled")
+    if db.get(Patient, patient_id) is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    try:
+        deleted_count = db.query(PrescriptionIssueReport).filter(
+            PrescriptionIssueReport.patient_id == patient_id
+        ).delete(synchronize_session=False)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Unable to reset reports. Please try again.")
+    return {"patient_id": patient_id, "deleted_count": deleted_count}

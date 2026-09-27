@@ -72,3 +72,17 @@ export async function loadPrescriptions(patientId: number, signal?: AbortSignal)
     }
   })
 }
+
+export async function getReportResetEnabled(signal?: AbortSignal): Promise<boolean> {
+  const result = await requestJson('/reports/developer/status', { signal })
+  return !!result && typeof result === 'object' && 'report_reset_enabled' in result && result.report_reset_enabled === true
+}
+
+export async function resetPatientReports(patientId: number): Promise<number> {
+  const result = await requestJson(`/reports/developer/${patientId}`, { method: 'DELETE' })
+  if (!result || typeof result !== 'object' || !('patient_id' in result) || result.patient_id !== patientId ||
+      !('deleted_count' in result) || typeof result.deleted_count !== 'number' || !Number.isInteger(result.deleted_count) || result.deleted_count < 0) {
+    throw new Error('The server returned an unexpected reset response. Refresh to check your report history.')
+  }
+  return result.deleted_count
+}

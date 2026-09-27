@@ -3,17 +3,16 @@ import type { FormEvent } from 'react'
 import App from './App'
 import { authenticatePatient } from './api'
 import './Auth.css'
+import { clearPortalSession, readPortalSession, savePortalSession } from './session'
+import type { PortalSession } from './session'
 
-type Profile = { name: string; email: string; birth: string }
-type PreviewSession = { profile: Profile; sampleRequests: boolean; patientId?: number }
 
-// Keep the returned patient ID in memory to load this patient’s prescriptions.
+// Restore this tab’s prototype account state after refresh; sign-out removes it.
 export default function Auth() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
-  const [session, setSession] = useState<PreviewSession | null>(null)
+  const [session, setSession] = useState<PortalSession | null>(() => readPortalSession())
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isResettingDemo, setIsResettingDemo] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [values, setValues] = useState({ name: '', birth: '', email: '', password: '', confirm: '' })
@@ -21,6 +20,11 @@ export default function Auth() {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
   const latestBirthDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+
+  function rememberSession(next: PortalSession) {
+    savePortalSession(next)
+    setSession(next)
+  }
 
   function switchMode() {
     if (isSubmitting) return
@@ -32,28 +36,9 @@ export default function Auth() {
   }
 
   function enterDemo() {
-    if (isSubmitting || isResettingDemo) return
+    if (isSubmitting) return
     setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
-    setSession({ profile: { name: 'Alex Morgan', email: 'alex@example.com', birth: '1994-06-15' }, sampleRequests: true })
-  }
-
-  async function resetDemoData() {
-    if (isResettingDemo || !window.confirm('Reset reports and rescue message data for Jane and John? Their accounts and prescriptions will remain.')) return
-    setMessage('')
-    setError('')
-    setIsResettingDemo(true)
-    try {
-      const response = await fetch('/api/reports/demo/reset', { method: 'POST' })
-      const result = await response.json() as { deleted_reports?: unknown; deleted_message_data?: unknown }
-      if (!response.ok || typeof result.deleted_reports !== 'number' || typeof result.deleted_message_data !== 'number') {
-        throw new Error('Unable to reset demo data. Please try again.')
-      }
-      setMessage(`Demo reset complete. Cleared ${result.deleted_reports} reports and ${result.deleted_message_data} rescue messages for Jane and John.`)
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to reset demo data. Please try again.')
-    } finally {
-      setIsResettingDemo(false)
-    }
+    rememberSession({ profile: { name: 'Alex Morgan', email: 'alex@example.com', birth: '1994-06-15' }, sampleRequests: true })
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -67,7 +52,7 @@ export default function Auth() {
     try {
       const patient = await authenticatePatient(mode, values)
       setValues({ name: '', birth: '', email: '', password: '', confirm: '' })
-      setSession({
+      rememberSession({
         patientId: patient.id,
         profile: { name: patient.name, email: patient.email, birth: patient.date_of_birth || '' },
         sampleRequests: false,
@@ -82,6 +67,7 @@ export default function Auth() {
 
   if (session) {
     return <App key={session.patientId ?? 'demo'} patientId={session.patientId} initialProfile={session.profile} sampleRequests={session.sampleRequests} onSignOut={() => {
+      clearPortalSession()
       setSession(null)
       setMode('login')
       setShowPassword(false)
@@ -108,11 +94,11 @@ export default function Auth() {
         <div className="auth-label">{signup ? 'A FRESH START' : 'GOOD TO SEE YOU'}</div>
         <h2>{signup ? 'Let’s get to know you.' : 'Welcome back.'}</h2>
         <p className="auth-intro">{signup ? 'A few details to start your patient profile.' : 'Log in to keep your care moving forward.'}</p>
-        <div className="auth-tabs" aria-label="Account options"><button type="button" disabled={isSubmitting || isResettingDemo} aria-pressed={!signup} className={!signup ? 'selected' : ''} onClick={() => { if (signup) switchMode() }}>Log in</button><button type="button" disabled={isSubmitting || isResettingDemo} aria-pressed={signup} className={signup ? 'selected' : ''} onClick={() => { if (!signup) switchMode() }}>Sign up</button></div>
+        <div className="auth-tabs" aria-label="Account options"><button type="button" disabled={isSubmitting} aria-pressed={!signup} className={!signup ? 'selected' : ''} onClick={() => { if (signup) switchMode() }}>Log in</button><button type="button" disabled={isSubmitting} aria-pressed={signup} className={signup ? 'selected' : ''} onClick={() => { if (!signup) switchMode() }}>Sign up</button></div>
         <div className="auth-preview-note">{signup ? 'Create a demo account using sample details. Your profile is stored in the local development database.' : 'Login using the credentials you signed up with to access the portal.'}</div>
         {message && <p className="auth-message" role="status">{message}</p>}
         {error && <p className="auth-error" role="alert" id="auth-error">{error}</p>}
-        <form onSubmit={submit} aria-busy={isSubmitting || isResettingDemo}><fieldset disabled={isSubmitting || isResettingDemo} style={{ display: 'contents', border: 0, padding: 0, margin: 0 }}>
+        <form onSubmit={submit} aria-busy={isSubmitting}><fieldset disabled={isSubmitting} style={{ display: 'contents', border: 0, padding: 0, margin: 0 }}>
           {signup && <div className="auth-name-fields"><label htmlFor="full-name">Full name<input id="full-name" name="name" autoComplete="name" required maxLength={120} value={values.name} onChange={e => setValues({ ...values, name: e.target.value })} placeholder="Alex Morgan"/></label><label htmlFor="birth">Date of birth<input id="birth" name="birth" type="date" autoComplete="bday" required max={latestBirthDate} value={values.birth} onChange={e => setValues({ ...values, birth: e.target.value })}/></label></div>}
           <label htmlFor="email">Email address<input id="email" name="email" type="email" autoComplete="email" required value={values.email} onChange={e => setValues({ ...values, email: e.target.value })} placeholder="you@example.com"/></label>
           <label htmlFor="password">Password<div className="auth-password"><input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} required maxLength={128} minLength={signup ? 8 : undefined} aria-describedby={signup ? 'password-hint' : undefined} value={values.password} onChange={e => setValues({ ...values, password: e.target.value })} placeholder={signup ? 'Create a sample password' : 'Enter your password'}/><button type="button" disabled={isSubmitting} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
@@ -121,9 +107,8 @@ export default function Auth() {
           <button className="primary auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? (signup ? 'Creating account…' : 'Logging in…') : signup ? 'Create my patient profile' : 'Log in'}<span aria-hidden="true">→</span></button>
         </fieldset></form>
         <div className="auth-divider"><span>or take a look around</span></div>
-        <button type="button" disabled={isSubmitting || isResettingDemo} className="auth-demo-button" onClick={enterDemo}>Explore the demo <span aria-hidden="true">↗</span></button>
-        {!signup && <button type="button" className="auth-reset-button text-button" disabled={isSubmitting || isResettingDemo} onClick={resetDemoData}>{isResettingDemo ? 'Resetting…' : 'Reset demo data'}</button>}
-        <p className="auth-switch">{signup ? 'Already have an account?' : 'New to RxRescue?'} <button type="button" disabled={isSubmitting || isResettingDemo} onClick={switchMode}>{signup ? 'Log in' : 'Sign up'}</button></p>
+        <button type="button" disabled={isSubmitting} className="auth-demo-button" onClick={enterDemo}>Explore the demo <span aria-hidden="true">↗</span></button>
+        <p className="auth-switch">{signup ? 'Already have an account?' : 'New to RxRescue?'} <button type="button" disabled={isSubmitting} onClick={switchMode}>{signup ? 'Log in' : 'Sign up'}</button></p>
       </div>
       <footer className="auth-footer">A little less friction. A little more care.</footer>
     </section>
