@@ -39,14 +39,14 @@ the HCP decides what to do next.
 ## Planned Components
 
 - **Patient profile:** relevant details such as current medications, known
-  allergies, conditions, age, and medical history.
+  allergies, conditions, and medical history.
 - **Medication information:** a curated prototype dataset of generic
   alternatives, active ingredients, warnings, contraindications, costs, and known
   interactions.
 - **Recommendation engine:** This engine filters possible alternatives by cost, compatibility
     (patient allergies and conflicts with existing medication) and medication warning labels 
     in accordance with the FDA Drug Label Website.
-- **PEP update messenger:** The messenger sends a packet of information containing the medical file 
+- **RxRescue update messenger:** The messenger sends a packet of information containing the medical file 
     of the patient in question, and a list of the top 3 partnered generic matches and the top 3 non-partnered generic options, all sorted by patient compatibility.
 - **Prescription follow-through:** a prototype workflow for recording the
   HCP's selected alternative and representing the updated prescription.
