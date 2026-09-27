@@ -75,6 +75,14 @@ The repository currently contains:
   `GET /patients/{patient_id}` and `GET /prescriptions/{patient_id}` routes.
   Interactive API docs are at `/docs`.
 
+  Demo Accounts
+
+  email: jane@example.com
+  pass: password123
+
+  email: john@example.com
+  pass: password456
+
 ## Quick start on macOS
 
 From the project root:
