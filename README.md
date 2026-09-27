@@ -79,6 +79,16 @@ Signup stores a local demo account with a one-way password hash. Login is not
 connected yet. The patient-specific recommendation engine and clinical workflow
 are still in development.
 
+Signup stores a local demo account with a one-way password hash. There are two demo accounts initially
+
+```sql
+Email: Doejohn@example.com
+Pass: 456Type
+
+Email Smithjane@example.com
+Pass: 123Asthma
+```
+
 ## Quick start on macOS
 
 From the project root:
