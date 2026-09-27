@@ -10,8 +10,9 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..audit import record_patient_change
 from ..database import SessionLocal
-from ..models import Patient, Prescription
+from ..models import Patient, PatientAuditLog, Prescription
 
 router = APIRouter()
 PASSWORD_HASH_ITERATIONS = 600_000
@@ -108,6 +109,20 @@ def create_patient(patient_data: PatientCreate, db: Session = Depends(get_db)):
     )
     db.add(patient)
     try:
+        db.flush()
+        record_patient_change(
+            db,
+            patient_id=patient.id,
+            actor_source="patient_portal",
+            action="patient.created",
+            entity_type="patient",
+            entity_id=patient.id,
+            changes={
+                "name": patient.name,
+                "email": patient.email,
+                "date_of_birth": patient.date_of_birth.isoformat(),
+            },
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -119,6 +134,32 @@ def create_patient(patient_data: PatientCreate, db: Session = Depends(get_db)):
         "email": patient.email,
         "date_of_birth": patient.date_of_birth,
     }
+
+
+@router.get("/{patient_id}/audit-log")
+def get_patient_audit_log(patient_id: int, db: Session = Depends(get_db)):
+    if db.get(Patient, patient_id) is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    entries = db.query(PatientAuditLog).filter(
+        PatientAuditLog.patient_id == patient_id
+    ).order_by(
+        PatientAuditLog.created_at.desc(), PatientAuditLog.id.desc()
+    ).all()
+
+    return [
+        {
+            "id": entry.id,
+            "patient_id": entry.patient_id,
+            "actor_source": entry.actor_source,
+            "action": entry.action,
+            "entity_type": entry.entity_type,
+            "entity_id": entry.entity_id,
+            "changes": entry.changes,
+            "created_at": entry.created_at,
+        }
+        for entry in entries
+    ]
 
 
 @router.get("/{patient_id}")

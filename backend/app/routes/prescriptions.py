@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from ..audit import record_patient_change
 from ..database import SessionLocal
 from ..demo_prescriptions import DEMO_REPLACEMENT_OPTIONS_BY_KEY
 from ..models import Patient, Prescription
@@ -46,6 +47,21 @@ def create_demo_prescription(
     )
     db.add(prescription)
     try:
+        db.flush()
+        record_patient_change(
+            db,
+            patient_id=patient.id,
+            actor_source="docupdate",
+            action="prescription.created",
+            entity_type="prescription",
+            entity_id=prescription.id,
+            changes={
+                "medication": prescription.medication,
+                "dosage": prescription.dosage,
+                "instructions": prescription.instructions,
+                "active": prescription.active,
+            },
+        )
         db.commit()
         db.refresh(prescription)
     except SQLAlchemyError:

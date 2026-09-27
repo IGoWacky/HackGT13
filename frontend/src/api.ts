@@ -51,6 +51,17 @@ export type DocUpdatePatient = {
   email: string
 }
 
+export type PatientAuditEntry = {
+  id: number
+  patient_id: number
+  actor_source: string
+  action: string
+  entity_type: string
+  entity_id: number | null
+  changes: Record<string, unknown>
+  created_at: string
+}
+
 // /api is forwarded to FastAPI by the local Vite proxy.
 async function requestJson(path: string, options?: RequestInit): Promise<unknown> {
   let response: Response
@@ -107,6 +118,23 @@ export async function loadPrescriptions(patientId: number, signal?: AbortSignal)
       // The current API does not return provider or pharmacy details.
       provider: 'Not provided', pharmacy: 'Not provided',
     }
+  })
+}
+
+export async function loadPatientAuditLog(patientId: number, signal?: AbortSignal): Promise<PatientAuditEntry[]> {
+  const result = await requestJson(`/patients/${patientId}/audit-log`, { signal })
+  if (!Array.isArray(result)) throw new Error('The server returned an invalid audit log.')
+  return result.map(entry => {
+    if (!entry || typeof entry !== 'object' || typeof entry.id !== 'number' ||
+        !Number.isInteger(entry.id) || entry.patient_id !== patientId ||
+        typeof entry.actor_source !== 'string' || typeof entry.action !== 'string' ||
+        typeof entry.entity_type !== 'string' ||
+        (entry.entity_id !== null && typeof entry.entity_id !== 'number') ||
+        !entry.changes || typeof entry.changes !== 'object' || Array.isArray(entry.changes) ||
+        typeof entry.created_at !== 'string') {
+      throw new Error('The server returned an invalid audit entry.')
+    }
+    return entry as PatientAuditEntry
   })
 }
 

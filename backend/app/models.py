@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Date, DateTime, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Date, DateTime, Integer, String, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -43,3 +43,15 @@ class RxRescueMessageData(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"))
     prescription_id = Column(Integer, ForeignKey("prescriptions.id"))
     cause = Column(String)
+
+class PatientAuditLog(Base):
+    __tablename__ = "patient_audit_logs"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    actor_source = Column(String, nullable=False)
+    action = Column(String, nullable=False)
+    entity_type = Column(String, nullable=False)
+    entity_id = Column(Integer, nullable=True)
+    changes = Column(JSON, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)

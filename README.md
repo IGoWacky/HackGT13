@@ -54,6 +54,10 @@ the HCP decides what to do next.
 For the hackathon, clinical and medication data should be curated for
 demonstration. Recommendations are not validated for real-world clinical use.
 
+## Privacy & Safety
+
+RxRescue is a HackGT prototype and is not HIPAA-compliant or intended for production use. The application uses synthetic patient and medication data for demonstration purposes. No real PHI should be entered into the application. The recommendation engine is not a substitute for clinical judgment, and all medication decisions must be independently reviewed by an appropriately licensed healthcare professional.
+
 ## Impiricus Track
 
 RxRescue applies the idea of timely, relevant HCP engagement to a prescription

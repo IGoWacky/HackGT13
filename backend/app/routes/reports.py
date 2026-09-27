@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..audit import record_patient_change
 from ..database import SessionLocal
 from ..demo_prescriptions import DEMO_REPLACEMENT_OPTIONS
 from ..models import Patient, Prescription, PrescriptionIssueReport, RxRescueMessageData
@@ -148,6 +149,16 @@ def create_report(
         cause=report_data.issue,
     )
     db.add_all([report, rescue_message_data])
+    db.flush()
+    record_patient_change(
+        db,
+        patient_id=patient_id,
+        actor_source="patient_portal",
+        action="report.created",
+        entity_type="prescription_issue_report",
+        entity_id=report.id,
+        changes={"issue": report.issue, "prescription_id": prescription.id},
+    )
     db.commit()
     db.refresh(report)
     return serialize_report(report, prescription)
@@ -170,6 +181,8 @@ def resolve_report(
     if original is None or original.patient_id != report.patient_id:
         raise HTTPException(status_code=409, detail="Original prescription is unavailable")
 
+    previous_status = report.status
+    previous_active = original.active
     replacement = None
     if resolution.replacement_key is not None:
         replacement_option = next(
@@ -194,6 +207,31 @@ def resolve_report(
             db.flush()
             report.new_prescription_id = replacement.id
         report.status = "Resolved"
+        changes = {
+            "status": {"from": previous_status, "to": report.status},
+            "original_prescription": {
+                "id": original.id,
+                "active": {"from": previous_active, "to": original.active},
+            },
+            "replacement_prescription": None,
+        }
+        if replacement is not None:
+            changes["replacement_prescription"] = {
+                "id": replacement.id,
+                "medication": replacement.medication,
+                "dosage": replacement.dosage,
+                "instructions": replacement.instructions,
+                "active": replacement.active,
+            }
+        record_patient_change(
+            db,
+            patient_id=report.patient_id,
+            actor_source="docupdate",
+            action="report.resolved",
+            entity_type="prescription_issue_report",
+            entity_id=report.id,
+            changes=changes,
+        )
         db.commit()
     except SQLAlchemyError:
         db.rollback()
@@ -212,12 +250,29 @@ def reset_demo_reports(db: Session = Depends(get_db)):
     if not patient_ids:
         return {"deleted_reports": 0, "deleted_message_data": 0}
 
+    report_ids_by_patient = {
+        patient_id: [report_id for (report_id,) in db.query(PrescriptionIssueReport.id).filter(
+            PrescriptionIssueReport.patient_id == patient_id
+        ).all()]
+        for patient_id in patient_ids
+    }
     deleted_message_data = db.query(RxRescueMessageData).filter(
         RxRescueMessageData.patient_id.in_(patient_ids)
     ).delete(synchronize_session=False)
     deleted_reports = db.query(PrescriptionIssueReport).filter(
         PrescriptionIssueReport.patient_id.in_(patient_ids)
     ).delete(synchronize_session=False)
+    for patient_id, report_ids in report_ids_by_patient.items():
+        if report_ids:
+            record_patient_change(
+                db,
+                patient_id=patient_id,
+                actor_source="demo_reset",
+                action="reports.deleted",
+                entity_type="prescription_issue_reports",
+                entity_id=None,
+                changes={"deleted_report_ids": report_ids},
+            )
     db.commit()
     return {
         "deleted_reports": deleted_reports,
@@ -247,9 +302,22 @@ def reset_reports(patient_id: int, request: Request, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail="Patient not found")
 
     try:
+        report_ids = [report_id for (report_id,) in db.query(PrescriptionIssueReport.id).filter(
+            PrescriptionIssueReport.patient_id == patient_id
+        ).all()]
         deleted_count = db.query(PrescriptionIssueReport).filter(
             PrescriptionIssueReport.patient_id == patient_id
         ).delete(synchronize_session=False)
+        if report_ids:
+            record_patient_change(
+                db,
+                patient_id=patient_id,
+                actor_source="demo_reset",
+                action="reports.deleted",
+                entity_type="prescription_issue_reports",
+                entity_id=None,
+                changes={"deleted_report_ids": report_ids},
+            )
         db.commit()
     except SQLAlchemyError:
         db.rollback()
