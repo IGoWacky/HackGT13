@@ -21,7 +21,8 @@ def get_prescriptions(
     db: Session = Depends(get_db)
 ):
     prescriptions = db.query(Prescription).filter(
-        Prescription.patient_id == patient_id
+        Prescription.patient_id == patient_id,
+        Prescription.active.is_(True),
     ).all()
 
     return prescriptions

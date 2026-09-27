@@ -1,60 +1,66 @@
 from .database import SessionLocal
 from .models import Patient, Prescription
+from .routes.patients import hash_password
 
 
-db = SessionLocal()
+PATIENTS = [
+    {
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "password": "password123",
+        "medical_history": "Asthma. Previous knee surgery in 2022.",
+    },
+    {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "password": "password456",
+        "medical_history": "Type 2 diabetes. No known allergies.",
+    },
+]
 
-# Create dummy patients
-patient1 = Patient(
-    name="Jane Smith",
-    email="jane@example.com",
-    password_hash="password123",
-    medical_history="Asthma. Previous knee surgery in 2022."
-)
+PRESCRIPTIONS = [
+    ("jane@example.com", "Amoxicillin", "500mg", "Take twice daily"),
+    ("jane@example.com", "Ibuprofen", "200mg", "Take as needed"),
+    ("john@example.com", "Metformin", "500mg", "Take once daily with food"),
+]
 
-patient2 = Patient(
-    name="John Doe",
-    email="john@example.com",
-    password_hash="password456",
-    medical_history="Type 2 diabetes. No known allergies."
-)
 
-db.add(patient1)
-db.add(patient2)
+def seed_demo_data() -> None:
+    with SessionLocal() as db:
+        patients = {}
+        for record in PATIENTS:
+            patient = db.query(Patient).filter(Patient.email == record["email"]).first()
+            if patient is None:
+                patient = Patient(
+                    name=record["name"],
+                    email=record["email"],
+                    password_hash=hash_password(record["password"]),
+                    medical_history=record["medical_history"],
+                )
+                db.add(patient)
+                db.flush()
+            elif not patient.password_hash.startswith("pbkdf2_sha256$"):
+                patient.password_hash = hash_password(record["password"])
+            patients[record["email"]] = patient
 
-# Save patients first so they get IDs
-db.commit()
+        for email, medication, dosage, instructions in PRESCRIPTIONS:
+            patient = patients[email]
+            exists = db.query(Prescription).filter(
+                Prescription.patient_id == patient.id,
+                Prescription.medication == medication,
+            ).first()
+            if exists is None:
+                db.add(Prescription(
+                    patient_id=patient.id,
+                    medication=medication,
+                    dosage=dosage,
+                    instructions=instructions,
+                    active=True,
+                ))
 
-# Create dummy prescriptions
-prescription1 = Prescription(
-    patient_id=patient1.id,
-    medication="Amoxicillin",
-    dosage="500mg",
-    instructions="Take twice daily",
-    active=True
-)
+        db.commit()
 
-prescription2 = Prescription(
-    patient_id=patient1.id,
-    medication="Ibuprofen",
-    dosage="200mg",
-    instructions="Take as needed",
-    active=True
-)
 
-prescription3 = Prescription(
-    patient_id=patient2.id,
-    medication="Metformin",
-    dosage="500mg",
-    instructions="Take once daily with food",
-    active=True
-)
-
-db.add(prescription1)
-db.add(prescription2)
-db.add(prescription3)
-
-db.commit()
-db.close()
-
-print("Dummy data added!")
+if __name__ == "__main__":
+    seed_demo_data()
+    print("Demo patient accounts and prescriptions are up to date.")
