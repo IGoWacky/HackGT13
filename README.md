@@ -75,10 +75,6 @@ The repository currently contains:
   `GET /patients/{patient_id}` and `GET /prescriptions/{patient_id}` routes.
   Interactive API docs are at `/docs`.
 
-Signup stores a local demo account with a one-way password hash, and login
-verifies those credentials against the local database. The patient-specific
-recommendation engine and clinical workflow are still in development.
-
 ## Quick start on macOS
 
 From the project root:
